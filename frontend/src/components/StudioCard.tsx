@@ -24,6 +24,22 @@ import { useReview } from "../lib/useReview";
 import { ParagraphsDialog } from "./ParagraphsDialog";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
+const PREF_PREFIX = "voice-trainer.studio.";
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(PREF_PREFIX + key);
+  } catch {
+    return null;
+  }
+}
+function writePref(key: string, value: string): void {
+  try {
+    localStorage.setItem(PREF_PREFIX + key, value);
+  } catch {
+    /* private mode */
+  }
+}
+
 type Props = {
   voice: VoiceSettings;
   minutes: { min: number; recommended: number; target: number };
@@ -48,9 +64,10 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [level, setLevel] = useState(0);
   const [peak, setPeak] = useState(0);
   const [lastPeaks, setLastPeaks] = useState<number[] | null>(null);
-  const [autoPlay, setAutoPlay] = useState(false);
+  // per-browser preferences that survive a reload
+  const [autoPlay, setAutoPlay] = useState(() => readPref("autoplay") === "1");
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
-  const [deviceId, setDeviceId] = useState("");
+  const [deviceId, setDeviceId] = useState(() => readPref("mic") ?? "");
   const [playing, setPlaying] = useState<{ id: string; progress: number } | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
@@ -66,6 +83,13 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const busyRef = useRef(false);
+
+  useEffect(() => writePref("autoplay", autoPlay ? "1" : "0"), [autoPlay]);
+  useEffect(() => writePref("mic", deviceId), [deviceId]);
+  // a remembered microphone that is no longer plugged in falls back to the default
+  useEffect(() => {
+    if (deviceId && devices.length && !devices.some((d) => d.deviceId === deviceId)) setDeviceId("");
+  }, [devices, deviceId]);
 
   const refresh = useCallback(async () => {
     try {
