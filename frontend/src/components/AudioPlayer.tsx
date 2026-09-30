@@ -100,36 +100,37 @@ export function AudioPlayer({ src, peaks: given, label, secondary, autoPlay, den
   const max = Math.max(0.05, ...shown);
 
   return (
-    <Stack direction="row" spacing={dense ? 1 : 1.5} alignItems="center" sx={{ width: "100%" }}>
-      <IconButton
-        onClick={toggle}
-        size={dense ? "small" : "medium"}
-        sx={{ bgcolor: "primary.main", color: "primary.contrastText", "&:hover": { bgcolor: "primary.dark" }, flexShrink: 0 }}
-        aria-label={playing ? "pause" : "play"}
-      >
-        {playing ? <PauseIcon fontSize={dense ? "small" : "medium"} /> : <PlayArrowIcon fontSize={dense ? "small" : "medium"} />}
-      </IconButton>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        {(label || secondary) && (
-          <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mb: 0.25, minWidth: 0 }}>
-            {label && (
-              <Typography variant={dense ? "body2" : "body1"} noWrap sx={{ flex: 1, minWidth: 0 }}>
-                {label}
-              </Typography>
-            )}
-            {secondary}
-          </Stack>
-        )}
-        <Box onClick={seek} sx={{ display: "flex", alignItems: "center", gap: "2px", height, cursor: "pointer", opacity: peaks ? 1 : 0.4, transition: "opacity 200ms" }} role="slider" aria-valuenow={Math.round(progress * 100)}>
+    <Box sx={{ width: "100%", minWidth: 0 }}>
+      {(label || secondary) && (
+        <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mb: 0.25, minWidth: 0 }}>
+          {label && (
+            <Typography variant={dense ? "body2" : "body1"} noWrap sx={{ flex: 1, minWidth: 0 }}>
+              {label}
+            </Typography>
+          )}
+          {secondary}
+        </Stack>
+      )}
+      {/* the button sits on the waveform row, not on the text above it */}
+      <Stack direction="row" spacing={dense ? 1 : 1.5} alignItems="center">
+        <IconButton
+          onClick={toggle}
+          size={dense ? "small" : "medium"}
+          sx={{ bgcolor: "primary.main", color: "primary.contrastText", "&:hover": { bgcolor: "primary.dark" }, flexShrink: 0 }}
+          aria-label={playing ? "pause" : "play"}
+        >
+          {playing ? <PauseIcon fontSize={dense ? "small" : "medium"} /> : <PlayArrowIcon fontSize={dense ? "small" : "medium"} />}
+        </IconButton>
+        <Box onClick={seek} sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "2px", height, cursor: "pointer", opacity: peaks ? 1 : 0.4, transition: "opacity 200ms" }} role="slider" aria-valuenow={Math.round(progress * 100)}>
           {shown.map((p, i) => {
             const played = i / shown.length <= progress && (playing || time > 0);
             return <Box key={i} sx={{ flex: 1, height: `${Math.max(8, (p / max) * 100)}%`, bgcolor: bar, borderRadius: 1, opacity: played ? 1 : 0.3, transition: "opacity 80ms" }} />;
           })}
         </Box>
-      </Box>
-      <Typography variant="caption" color="text.secondary" sx={{ minWidth: dense ? 34 : 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-        {dense ? formatTime(duration) : `${formatTime(time)} / ${formatTime(duration)}`}
-      </Typography>
-    </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ minWidth: dense ? 34 : 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+          {dense ? formatTime(duration) : `${formatTime(time)} / ${formatTime(duration)}`}
+        </Typography>
+      </Stack>
+    </Box>
   );
 }
