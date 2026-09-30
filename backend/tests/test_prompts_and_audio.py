@@ -110,3 +110,13 @@ def test_quiet_take_with_room_noise_is_not_cut_off(tmp_path):
     q = analyze(path, "Krátká věta na zkoušku hlasitosti.")["quality"]
     assert "cut_start" not in q["issues"] and "cut_end" not in q["issues"]
     assert 3.0 <= q["speech_seconds"] <= 3.5
+
+
+def test_misspelled_sentences_are_dropped_from_the_corpus():
+    assert prompts.misspelled("Ale protože žije jen v bytě, až tolik příežitostí k pohybu nemá.", "cs") == ["příežitostí"]
+    assert prompts.misspelled("Karolína vytahuje sluneční brýle a nasazuje si je.", "cs") == []
+    assert prompts.misspelled("The quick brown fox jumps over the lazy dog in Springfield.", "en") == []
+    assert prompts.misspelled("The quick brown fox jumpss over the lazy dog.", "en") == ["jumpss"]
+    lines = ["Ale protože žije jen v bytě, až tolik příežitostí k pohybu nemá.", "Karolína vytahuje sluneční brýle a nasazuje si je na nos."]
+    assert prompts.filter_sentences(lines, "cs") == [lines[1]]
+    assert len(prompts.filter_sentences(lines, "cs", spell=False)) == 2

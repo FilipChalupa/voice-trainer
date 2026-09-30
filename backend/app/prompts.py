@@ -99,8 +99,36 @@ def _clean(line: str) -> str:
     return re.sub(r"\s+", " ", line.strip().strip('"').strip())
 
 
-def filter_sentences(lines: list[str], language: str) -> list[str]:
-    """Keeps natural, readable sentences: 6-16 words, 35-120 characters, only the language's alphabet."""
+DICTIONARY_FILES = {"cs": "cs_CZ", "en": "en_US"}
+_dictionaries: dict[str, Any] = {}
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+def _dictionary(language: str):
+    """Hunspell dictionary of the language (pure Python, loads in about a second), None when unavailable."""
+    if language not in _dictionaries:
+        try:
+            from spylls.hunspell import Dictionary
+
+            base = os.path.join(os.path.dirname(__file__), "dictionaries", DICTIONARY_FILES[language])
+            _dictionaries[language] = Dictionary.from_files(base)
+        except Exception:  # noqa: BLE001  (no dictionary = no spell filtering, not an error)
+            _dictionaries[language] = None
+    return _dictionaries[language]
+
+
+def misspelled(sentence: str, language: str) -> list[str]:
+    """Lowercase words the dictionary does not know: typos, slang and archaic forms. Names are capitalised and
+    therefore not checked. Empty when no dictionary is available."""
+    d = _dictionary(language)
+    if d is None:
+        return []
+    return [w for w in _WORD.findall(sentence) if w.islower() and len(w) > 1 and not d.lookup(w)]
+
+
+def filter_sentences(lines: list[str], language: str, spell: bool = True) -> list[str]:
+    """Keeps natural, readable sentences: 6-16 words, 35-120 characters, only the language's alphabet and, with a
+    dictionary at hand, no misspelled words (a typo in a prompt would be read aloud and kept as the transcript)."""
     allowed = _ALLOWED.get(language, _ALLOWED["en"])
     out: list[str] = []
     seen: set[str] = set()
@@ -110,6 +138,8 @@ def filter_sentences(lines: list[str], language: str) -> list[str]:
             continue
         words = s.split()
         if not (6 <= len(words) <= 16) or s.isupper() or not s[0].isupper():
+            continue
+        if spell and misspelled(s, language):
             continue
         if s[-1] not in ".?!":
             s += "."
@@ -144,8 +174,11 @@ def select_balanced(sentences: list[str], size: int, seed: int = 7) -> list[str]
     return chosen
 
 
+CORPUS_VERSION = 2  # bump when the filtering changes, so an already prepared corpus is rebuilt
+
+
 def corpus_path(language: str):
-    return PROMPTS_DIR / f"{language}.json"
+    return PROMPTS_DIR / f"{language}.v{CORPUS_VERSION}.json"
 
 
 def prepare_corpus(language: str) -> list[dict[str, str]]:
