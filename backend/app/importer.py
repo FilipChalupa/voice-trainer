@@ -28,6 +28,10 @@ MAX_UPLOAD = 2 << 30  # 2 GB
 RUNNING = ("uploading", "downloading", "loading", "transcribing", "cutting", "storing")
 
 
+def transcribe_command(source: Path, work: Path, language: str) -> list[str]:
+    return [sys.executable, "-m", "trainer.transcribe", "--input", str(source), "--out-dir", str(work), "--language", language, "--model", WHISPER_MODEL, "--download-root", str(WHISPER_DIR)]
+
+
 class Transcriber:
     """One transcription at a time; the state is polled by the UI."""
 
@@ -84,7 +88,7 @@ class Transcriber:
     def _run(self, voice: Voice, source: Path, language: str) -> None:
         work = source.parent
         try:
-            cmd = [sys.executable, "-m", "trainer.transcribe", "--input", str(source), "--out-dir", str(work), "--language", language, "--model", WHISPER_MODEL, "--download-root", str(WHISPER_DIR)]
+            cmd = transcribe_command(source, work, language)
             env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONPATH": str(BACKEND_ROOT), "NUMBA_CACHE_DIR": os.environ.get("NUMBA_CACHE_DIR", "/tmp/numba_cache")}
             WHISPER_DIR.mkdir(parents=True, exist_ok=True)
             self._proc = subprocess.Popen(cmd, cwd=str(work), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
@@ -116,6 +120,10 @@ class Transcriber:
         finally:
             self._proc = None
             shutil.rmtree(work, ignore_errors=True)
+            try:
+                work.parent.rmdir()  # the imports folder is only needed while something is being transcribed
+            except OSError:
+                pass
 
     def _handle_line(self, line: str) -> None:
         line = line.rstrip()

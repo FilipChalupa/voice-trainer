@@ -121,7 +121,10 @@ def _flagged_by_model(voice: Voice) -> set[str]:
     if not path.exists():
         return set()
     try:
-        return set(json.loads(path.read_text()).get("flagged") or [])
+        data = json.loads(path.read_text())
+        if not (voice.jobs_dir / str(data.get("job_id"))).is_dir():
+            return set()  # the run was pruned or deleted; its verdicts no longer apply
+        return set(data.get("flagged") or [])
     except (OSError, json.JSONDecodeError, AttributeError):
         return set()
 

@@ -34,6 +34,8 @@ def load_voice(path: Path):
             _voices.move_to_end(key)
             return _voices[key]
     voice = PiperVoice.load(str(path))
+    for junk in Path.cwd().glob(":memory:*"):  # onnxruntime's telemetry drops a file into the working directory
+        junk.unlink(missing_ok=True)
     with _lock:
         _voices[key] = voice
         while len(_voices) > MAX_LOADED:
