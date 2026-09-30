@@ -1,0 +1,20 @@
+services:
+  app:
+    build:
+      context: .
+    image: voice-trainer
+    ports:
+      - "${PORT:-8001}:8000"
+    volumes:
+      - ./data:/data
+    shm_size: "2gb"   # PyTorch data loader workers share tensors through /dev/shm
+    environment:
+      # Optional HTTP Basic auth for the whole UI/API (leave empty to disable)
+      - APP_USER=${APP_USER:-admin}
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      # uid/gid that owns files in ./data
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      # finished training runs kept per voice (each keeps an ~850 MB checkpoint to continue from)
+      - KEEP_JOBS=${KEEP_JOBS:-5}
+    restart: unless-stopped

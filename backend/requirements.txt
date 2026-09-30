@@ -1,0 +1,8 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+soundfile==0.13.1
+scipy>=1.13
+numpy>=2.0
+requests>=2.32
+# Piper (inference + training) is installed from a pinned git checkout in the Dockerfile.

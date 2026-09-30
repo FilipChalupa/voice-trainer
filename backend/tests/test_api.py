@@ -1,0 +1,131 @@
+import io
+import json
+
+import numpy as np
+import soundfile as sf
+from fastapi.testclient import TestClient
+
+from app import config
+from app.main import app
+
+client = TestClient(app)
+
+
+def wav_bytes(seconds=3.0, sr=22050, amplitude=0.4):
+    t = np.arange(int(seconds * sr)) / sr
+    audio = np.concatenate([np.zeros(sr // 3, np.float32), (amplitude * np.sin(2 * np.pi * 200 * t)).astype(np.float32), np.zeros(sr // 3, np.float32)])
+    buf = io.BytesIO()
+    sf.write(buf, audio, sr, subtype="PCM_16", format="WAV")
+    return buf.getvalue()
+
+
+def test_no_voice_yet():
+    payload = client.get("/api/voices").json()
+    assert payload["voice"] is None and payload["voices"] == [] and {lang["id"] for lang in payload["languages"]} == {"cs", "en"}
+    assert client.get("/api/recordings").json()["detail"]["code"] == "no_voice"
+
+
+def test_create_voice_requires_owner_and_name():
+    assert client.post("/api/voices", json={"name": "", "owner": "A"}).json()["detail"]["code"] == "name_required"
+    assert client.post("/api/voices", json={"name": "Filip", "owner": ""}).json()["detail"]["code"] == "owner_required"
+    payload = client.post("/api/voices", json={"name": "Filip", "owner": "Filip Chalupa", "language": "cs"}).json()
+    assert payload["current"] == "filip" and payload["voice"]["has_consent"] is False
+    assert "Filip Chalupa" in payload["voice"]["consent_statement"]
+
+
+def test_consent_gates_training_and_is_bound_to_owner():
+    assert client.post("/api/train").json()["detail"]["code"] == "consent_required"
+    assert client.post("/api/consent", files={"file": ("c.wav", wav_bytes(1.0), "audio/wav")}).json()["detail"]["code"] == "too_short"
+    payload = client.post("/api/consent", files={"file": ("c.wav", wav_bytes(4.0), "audio/wav")}).json()
+    assert payload["voice"]["has_consent"] is True and payload["voice"]["consent"]["owner"] == "Filip Chalupa"
+    assert client.get("/api/consent/audio").status_code == 200
+    assert client.post("/api/train").json()["detail"]["code"] == "too_little_audio"
+    # changing the owner invalidates the consent
+    payload = client.put("/api/voice", json={"owner": "Someone Else"}).json()
+    assert payload["voice"]["has_consent"] is False
+    client.put("/api/voice", json={"owner": "Filip Chalupa"})
+    client.post("/api/consent", files={"file": ("c.wav", wav_bytes(4.0), "audio/wav")})
+
+
+def test_prompts_recording_flow():
+    prompts = client.get("/api/prompts?count=3").json()
+    assert prompts["source"] == "builtin" and len(prompts["items"]) == 3
+    first = prompts["items"][0]
+    up = client.post("/api/recordings", data={"text": first["text"], "prompt_id": first["id"]}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    assert up["text"] == first["text"] and 3.0 <= up["duration"] <= 3.7 and len(up["peaks"]) == 64
+    listing = client.get("/api/recordings").json()
+    assert listing["count"] == 1 and listing["minutes"] > 0.04
+    # the recorded prompt is no longer offered
+    assert client.get("/api/prompts?count=3").json()["items"][0]["id"] != first["id"]
+    # re-recording the same prompt replaces the earlier take
+    again = client.post("/api/recordings", data={"text": first["text"], "prompt_id": first["id"]}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    ids = [r["id"] for r in client.get("/api/recordings").json()["items"]]
+    assert ids == [again["id"]]
+    edited = client.put(f"/api/recordings/{again['id']}", json={"text": "Opravený přepis věty."}).json()
+    assert edited["text"] == "Opravený přepis věty."
+    assert client.delete(f"/api/recordings/{again['id']}").json()["restorable"]
+    assert client.get("/api/recordings").json()["count"] == 0
+    assert client.post(f"/api/recordings/{again['id']}/restore").json()["text"] == "Opravený přepis věty."
+
+
+def test_skip_and_custom_prompts():
+    first = client.get("/api/prompts?count=1").json()["items"][0]
+    client.post(f"/api/prompts/{first['id']}/skip")
+    assert client.get("/api/prompts?count=1").json()["items"][0]["id"] != first["id"]
+    assert client.post("/api/prompts/custom", json={"text": "x"}).json()["detail"]["code"] == "no_sentences"
+    assert client.post("/api/prompts/custom", json={"text": "Rozsviť světlo v obýváku. Jaká je venku teplota?"}).json()["added"] == 2
+    assert client.get("/api/prompts?count=1").json()["items"][0]["text"] == "Rozsviť světlo v obýváku."
+
+
+def test_silent_upload_is_rejected():
+    res = client.post("/api/recordings", data={"text": "Ticho."}, files={"file": ("s.wav", wav_bytes(amplitude=0.0), "audio/wav")})
+    assert res.status_code == 400 and res.json()["detail"]["code"] == "silent_recording"
+
+
+def test_dataset_report_and_training_params():
+    report = client.get("/api/dataset").json()
+    assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False
+    payload = client.put("/api/voice", json={"training": {"epochs": 5, "batch_size": 999, "validation_every": 10, "preview_every": 25}}).json()
+    training = payload["voice"]["training"]
+    assert training["epochs"] == 10 and training["batch_size"] == 64 and training["preview_every"] == 20
+
+
+def test_job_summary_previews_and_exports(tmp_path):
+    from app.jobs import job_summary, list_exports, list_previews
+
+    job_dir = tmp_path / "20260101_000000_abc"
+    (job_dir / "previews" / "epoch_00050").mkdir(parents=True)
+    (job_dir / "previews" / "epoch_00050" / "0.wav").write_bytes(b"RIFF")
+    (job_dir / "previews" / "epoch_00050" / "sentences.json").write_text(json.dumps(["Ahoj."]))
+    (job_dir / "export").mkdir()
+    (job_dir / "export" / "cs_CZ-x-medium.onnx").write_bytes(b"onnx")
+    (job_dir / "export" / "exports.json").write_text(json.dumps([{"variant": "last", "file": "cs_CZ-x-medium.onnx", "checkpoint": "last.ckpt", "size": 4}]))
+    (job_dir / "checkpoints").mkdir()
+    (job_dir / "checkpoints" / "last.ckpt").write_bytes(b"x")
+    (job_dir / "job.json").write_text(json.dumps({"job_id": job_dir.name, "slug": "x", "max_epochs": 100, "training": {}}))
+    previews = list_previews(job_dir, job_dir.name)
+    assert previews[0]["epoch"] == 50 and previews[0]["items"][0]["text"] == "Ahoj."
+    assert list_exports(job_dir, job_dir.name)[0]["url"].endswith("/export/cs_CZ-x-medium.onnx")
+    summary = job_summary(job_dir, running_job_id=None)
+    assert summary["status"] == "interrupted" and summary["resumable"] is True and summary["bundle_url"]
+    assert job_summary(job_dir, running_job_id=job_dir.name)["status"] == "running"
+
+
+def test_export_variants_and_usage_text():
+    from pathlib import Path
+
+    from app.synth import usage_text
+    from trainer.export import variant_of
+
+    assert variant_of(Path("last.ckpt")) == "last" and variant_of(Path("best_mos-epoch=40.ckpt")) == "best_mos" and variant_of(Path("best_mel-epoch=90.ckpt")) == "best_mel"
+    text = usage_text("cs_CZ-filip-medium", {"name": "Filip", "owner": "Filip Chalupa", "consent": {"at": "2026-01-01"}})
+    assert "/share/piper" in text and "cs_CZ-filip-medium.onnx.json" in text and "Filip Chalupa" in text
+
+
+def test_system_and_voice_delete():
+    info = client.get("/api/system").json()
+    assert "gpu_available" in info and "torch_cuda" in info and info["disk_total_gb"] > 0
+    other = client.post("/api/voices", json={"name": "Second", "owner": "Jane Doe", "language": "en"}).json()
+    assert other["current"] == "second" and other["voice"]["language"] == "en"
+    after = client.delete("/api/voices/second").json()
+    assert [v["id"] for v in after["voices"]] == ["filip"] and config.current_voice().id == "filip"

@@ -1,0 +1,18 @@
+# data / models
+data/
+*.onnx
+*.ckpt
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node
+node_modules/
+frontend/dist/
+
+# misc
+.env
+.DS_Store

@@ -1,0 +1,235 @@
+export type TrainingParams = {
+  epochs: number;
+  batch_size: number;
+  validation_every: number;
+  preview_every: number;
+  learning_rate: number;
+};
+
+export type Consent = { text: string; owner: string; at: string; duration: number };
+
+export type VoiceSettings = {
+  id: string;
+  name: string;
+  language: string;
+  owner: string;
+  consent: Consent | null;
+  has_consent: boolean;
+  consent_statement: string;
+  max_record_seconds: number;
+  training: TrainingParams;
+  created_at?: string;
+};
+
+export type VoiceSummary = {
+  id: string;
+  name: string;
+  language: string;
+  owner: string;
+  has_consent: boolean;
+  recordings: number;
+  jobs: number;
+  created_at: string | null;
+  current: boolean;
+};
+
+export type Language = { id: string; label: string; base: { name: string; file: string; epoch: number; size_mb: number; license: string } };
+
+export type VoicesPayload = {
+  voices: VoiceSummary[];
+  current: string | null;
+  languages: Language[];
+  defaults: TrainingParams;
+  minutes: { min: number; recommended: number; target: number };
+  voice: VoiceSettings | null;
+};
+
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable";
+
+export type Recording = {
+  id: string;
+  text: string;
+  prompt_id: string | null;
+  created: string;
+  duration: number;
+  url: string;
+  peaks: number[];
+  quality: { peak?: number; rms_db?: number; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
+};
+
+export type Prompt = { id: string; text: string };
+export type Prompts = {
+  items: Prompt[];
+  total: number;
+  remaining: number;
+  source: "corpus" | "builtin";
+  preparing: null | { state: string; error: string | null };
+  custom: number;
+};
+
+export type DatasetReport = {
+  count: number;
+  minutes: number;
+  mean_seconds: number;
+  min_minutes: number;
+  recommended_minutes: number;
+  target_minutes: number;
+  flagged: number;
+  issues: Record<string, number>;
+  rare_letters: string[];
+  duration_histogram: number[];
+  has_consent: boolean;
+  ready: boolean;
+};
+
+export type BaseItem = {
+  language: string;
+  label: string;
+  name: string;
+  size_mb: number;
+  license: string;
+  installed: boolean;
+  download: null | { state: string; received?: number; total?: number | null; error?: string | null };
+};
+
+export type ValidationEntry = { epoch: number; val_mel: number | null; val_mos: number | null; val_loss: number | null };
+export type Preview = { epoch: number; items: { url: string; text: string }[] };
+export type ExportedVoice = { variant: string; file: string; checkpoint: string; size: number; url: string; config_url: string };
+
+export type TrainingStatus = "idle" | "downloading" | "preparing" | "training" | "exporting" | "done" | "failed" | "cancelled" | "interrupted";
+
+export type TrainingState = {
+  status: TrainingStatus;
+  job_id: string | null;
+  voice_id: string | null;
+  name: string | null;
+  stage_key: string | null;
+  message: string | null;
+  message_key: string | null;
+  message_params: Record<string, string | number> | null;
+  progress: { current: number; total: number };
+  epoch: number;
+  total_epochs: number;
+  batch: number;
+  batches: number;
+  metrics: null | { loss_g: number | null; loss_d: number | null };
+  validation: ValidationEntry[];
+  previews: Preview[];
+  exports: ExportedVoice[];
+  bundle_url: string | null;
+  resumable: boolean;
+  device: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  epoch_seconds: number | null;
+  error: string | null;
+  log_tail?: string[];
+};
+
+export type Job = {
+  job_id: string;
+  voice_id: string;
+  name: string;
+  slug: string;
+  language: string;
+  created_at: string;
+  finished_at: string | null;
+  status: string;
+  minutes: number;
+  recordings: number;
+  training: TrainingParams;
+  max_epochs: number;
+  epoch: number | null;
+  validation_last: ValidationEntry | null;
+  exports: ExportedVoice[];
+  bundle_url: string | null;
+  resumable: boolean;
+  previews: number;
+};
+
+export type SystemInfo = {
+  version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  releases_url: string;
+  gpu: null | { name: string; memory_total_mb: number; memory_used_mb: number; driver: string };
+  gpu_available: boolean;
+  torch_cuda: boolean;
+  cpu_count: number | null;
+  disk_free_gb: number;
+  disk_total_gb: number;
+};
+
+export class ApiError extends Error {
+  code: string | null;
+  constructor(message: string, code: string | null = null) {
+    super(message);
+    this.code = code;
+  }
+}
+
+async function check(res: Response): Promise<Response> {
+  if (res.ok) return res;
+  let detail: unknown = res.statusText;
+  try {
+    const body = await res.json();
+    detail = body.detail ?? body;
+  } catch {
+    /* ignore */
+  }
+  if (detail && typeof detail === "object" && "code" in (detail as object)) {
+    const d = detail as { code: string; message?: string };
+    throw new ApiError(d.message ?? d.code, d.code);
+  }
+  throw new ApiError(typeof detail === "string" ? detail : JSON.stringify(detail));
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await check(await fetch(url, init));
+  return res.json() as Promise<T>;
+}
+
+const json = (method: string, body: unknown): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+export const api = {
+  voices: () => request<VoicesPayload>("/api/voices"),
+  createVoice: (name: string, owner: string, language: string) => request<VoicesPayload>("/api/voices", json("POST", { name, owner, language })),
+  selectVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}/select`, { method: "POST" }),
+  deleteVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}`, { method: "DELETE" }),
+  saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
+  uploadConsent: (wav: Blob) => {
+    const form = new FormData();
+    form.append("file", wav, "consent.wav");
+    return request<VoicesPayload>("/api/consent", { method: "POST", body: form });
+  },
+  deleteConsent: () => request<VoicesPayload>("/api/consent", { method: "DELETE" }),
+  recordings: () => request<{ items: Recording[]; count: number; minutes: number }>("/api/recordings"),
+  uploadRecording: (wav: Blob, text: string, promptId: string | null) => {
+    const form = new FormData();
+    form.append("text", text);
+    if (promptId) form.append("prompt_id", promptId);
+    form.append("file", wav, "sample.wav");
+    return request<Recording>("/api/recordings", { method: "POST", body: form });
+  },
+  updateRecording: (id: string, text: string) => request<Recording>(`/api/recordings/${id}`, json("PUT", { text })),
+  deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
+  restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),
+  prompts: (count = 4) => request<Prompts>(`/api/prompts?count=${count}`),
+  addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),
+  skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
+  dataset: () => request<DatasetReport>("/api/dataset"),
+  base: () => request<{ items: BaseItem[] }>("/api/base"),
+  downloadBase: (language: string) => request<unknown>(`/api/base/${language}/download`, { method: "POST" }),
+  startTraining: () => request<TrainingState>("/api/train", { method: "POST" }),
+  resumeTraining: (extraEpochs = 0) => request<TrainingState>("/api/train/resume", json("POST", { extra_epochs: extraEpochs })),
+  cancelTraining: () => request<TrainingState>("/api/train/cancel", { method: "POST" }),
+  trainingSnapshot: () => request<TrainingState>("/api/train"),
+  jobs: () => request<{ items: Job[] }>("/api/jobs"),
+  deleteJob: (id: string) => request<unknown>(`/api/jobs/${id}`, { method: "DELETE" }),
+  exportJob: (id: string) => request<TrainingState>(`/api/jobs/${id}/export`, { method: "POST" }),
+  synthesize: async (body: { job_id: string; file: string; text: string; length_scale: number; noise_scale: number; noise_w_scale: number }) => {
+    const res = await check(await fetch("/api/synthesize", json("POST", body)));
+    return res.blob();
+  },
+  system: () => request<SystemInfo>("/api/system"),
+};

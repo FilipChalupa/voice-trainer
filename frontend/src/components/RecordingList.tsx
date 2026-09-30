@@ -1,0 +1,123 @@
+import { useState } from "react";
+import { Box, Chip, IconButton, Stack, TextField, Tooltip, Typography, useTheme } from "@mui/material";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import StopIcon from "@mui/icons-material/Stop";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
+import type { Recording } from "../api";
+import { useI18n, type TKey } from "../i18n";
+
+type Props = {
+  items: Recording[];
+  disabled: boolean;
+  playingId: string | null;
+  playingProgress?: number;
+  onTogglePlay: (rec: Recording) => void;
+  onDelete: (rec: Recording) => void;
+  onEdit: (rec: Recording, text: string) => Promise<void>;
+};
+
+/** Newest-first list of recordings: waveform, transcript (editable), quality warnings, play and delete. */
+export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onEdit }: Props) {
+  const { t } = useI18n();
+  const theme = useTheme();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const save = async (rec: Recording) => {
+    await onEdit(rec, draft);
+    setEditing(null);
+  };
+
+  return (
+    <Box sx={{ maxHeight: 420, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 2 }}>
+      {items.length === 0 && (
+        <Typography sx={{ p: 2 }} color="text.secondary">
+          {t("rec.empty")}
+        </Typography>
+      )}
+      {[...items].reverse().map((rec, idx) => {
+        const isPlaying = playingId === rec.id;
+        return (
+          <Stack key={rec.id} direction="row" spacing={1} alignItems="center" sx={{ px: 1, py: 0.75, borderBottom: idx < items.length - 1 ? 1 : 0, borderColor: "divider", bgcolor: isPlaying ? "action.selected" : "transparent" }}>
+            <IconButton size="small" onClick={() => onTogglePlay(rec)} color={isPlaying ? "primary" : "default"}>
+              {isPlaying ? <StopIcon /> : <PlayArrowIcon />}
+            </IconButton>
+            <Box sx={{ width: 110, cursor: "pointer", flexShrink: 0, display: { xs: "none", sm: "block" } }} onClick={() => onTogglePlay(rec)}>
+              <Waveform peaks={rec.peaks} color={isPlaying ? theme.palette.primary.main : theme.palette.text.secondary} height={26} progress={isPlaying ? playingProgress : undefined} />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {editing === rec.id ? (
+                <TextField size="small" fullWidth multiline value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus />
+              ) : (
+                <Typography variant="body2">{rec.text}</Typography>
+              )}
+              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
+                <Typography variant="caption" color="text.secondary">
+                  #{items.length - idx} · {rec.duration.toFixed(1)} s · {t("rec.peakInfo", { peak: Math.round((rec.quality.peak ?? 0) * 100), db: rec.quality.rms_db ?? 0 })}
+                </Typography>
+                {rec.quality.issues.map((issue) => (
+                  <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
+                    <Chip size="small" color="warning" variant="outlined" label={t(`rec.issue.${issue}` as TKey)} sx={{ height: 18, fontSize: 11 }} />
+                  </Tooltip>
+                ))}
+              </Stack>
+            </Box>
+            {editing === rec.id ? (
+              <>
+                <Tooltip title={t("rec.save")}>
+                  <IconButton size="small" color="primary" onClick={() => save(rec)} disabled={draft.trim().length < 3}>
+                    <CheckIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={t("rec.cancel")}>
+                  <IconButton size="small" onClick={() => setEditing(null)}>
+                    <CloseIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                <Tooltip title={t("rec.editTooltip")}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={disabled}
+                      onClick={() => {
+                        setEditing(rec.id);
+                        setDraft(rec.text);
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={t("rec.deleteTooltip")}>
+                  <span>
+                    <IconButton size="small" onClick={() => onDelete(rec)} disabled={disabled}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </>
+            )}
+          </Stack>
+        );
+      })}
+    </Box>
+  );
+}
+
+export function Waveform({ peaks, color, height, progress }: { peaks: number[]; color: string; height: number; progress?: number }) {
+  const max = Math.max(0.05, ...peaks);
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: "1px", height }}>
+      {peaks.map((p, i) => {
+        const played = progress !== undefined && i / peaks.length <= progress;
+        return <Box key={i} sx={{ flex: 1, height: `${Math.max(6, (p / max) * 100)}%`, bgcolor: color, borderRadius: 1, opacity: played ? 1 : progress !== undefined ? 0.35 : 0.75 }} />;
+      })}
+    </Box>
+  );
+}

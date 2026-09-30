@@ -1,0 +1,9 @@
+{
+  "name": "Voice Trainer",
+  "short_name": "Voice",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "theme_color": "#6d28d9",
+  "background_color": "#0b1220",
+  "display": "standalone",
+  "start_url": "/"
+}
