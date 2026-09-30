@@ -411,6 +411,10 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             playingProgress={playing?.progress}
             onTogglePlay={(rec) => (playing?.id === rec.id ? stopPlayback() : playOne(rec))}
             onDelete={remove}
+            onRedo={(rec) => {
+              if (playing?.id === rec.id) stopPlayback();
+              review.redo(rec).then(() => setInfo(t("studio.redoQueued")));
+            }}
             onEdit={edit}
           />
         </Stack>

@@ -4,6 +4,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
+import MicIcon from "@mui/icons-material/Mic";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
@@ -20,11 +21,12 @@ type Props = {
   playingProgress?: number;
   onTogglePlay: (rec: Recording) => void;
   onDelete: (rec: Recording) => void;
+  onRedo: (rec: Recording) => void;
   onEdit: (rec: Recording, text: string) => Promise<void>;
 };
 
 /** Newest-first list of recordings: waveform, transcript (editable), quality warnings, play and delete. */
-export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onEdit }: Props) {
+export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onRedo, onEdit }: Props) {
   const { t } = useI18n();
   const theme = useTheme();
   const [editing, setEditing] = useState<string | null>(null);
@@ -136,6 +138,13 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                       }}
                     >
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={t("rec.redoTooltip")}>
+                  <span>
+                    <IconButton size="small" onClick={() => onRedo(rec)} disabled={disabled}>
+                      <MicIcon fontSize="small" />
                     </IconButton>
                   </span>
                 </Tooltip>
