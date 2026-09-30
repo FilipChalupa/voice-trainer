@@ -55,6 +55,7 @@ export type Recording = {
   duration: number;
   url: string;
   peaks: number[];
+  reviewed: boolean;
   source: "import" | "transcribed" | null;
   quality: { peak?: number; rms_db?: number; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
 };
@@ -242,6 +243,7 @@ export const api = {
     return request<Recording>("/api/recordings", { method: "POST", body: form });
   },
   updateRecording: (id: string, text: string) => request<Recording>(`/api/recordings/${id}`, json("PUT", { text })),
+  reviewRecording: (id: string, text: string | null) => request<Recording>(`/api/recordings/${id}`, json("PUT", { reviewed: true, ...(text !== null ? { text } : {}) })),
   deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
   restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),
   prompts: (count = 4) => request<Prompts>(`/api/prompts?count=${count}`),

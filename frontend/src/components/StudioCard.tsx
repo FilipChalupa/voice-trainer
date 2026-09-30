@@ -6,10 +6,12 @@ import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
 import ReplayIcon from "@mui/icons-material/Replay";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
 import { api, type Prompt, type Prompts, type Recording, type VoiceSettings } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder, waveformPeaks } from "../lib/recorder";
 import { RecordingList, Waveform } from "./RecordingList";
+import { ReviewDialog } from "./ReviewDialog";
 
 type Props = {
   voice: VoiceSettings;
@@ -40,6 +42,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [playing, setPlaying] = useState<{ id: string; progress: number } | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [info, setInfo] = useState<string | null>(null);
 
@@ -216,6 +219,28 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     }
   };
 
+  // takes with a warning or a machine transcript that nobody has confirmed yet
+  const reviewQueue = recordings.filter((r) => !r.reviewed && (r.quality.issues.length > 0 || r.source === "transcribed"));
+  const reviewApprove = async (rec: Recording, newText: string | null) => {
+    try {
+      await api.reviewRecording(rec.id, newText);
+      await refresh();
+    } catch (e) {
+      onError(errorText(t, e));
+    }
+  };
+  const reviewRedo = async (rec: Recording) => {
+    try {
+      // the sentence goes to the front of the queue as a custom prompt and the take is dropped
+      await api.addCustomPrompts(rec.text);
+      await api.deleteRecording(rec.id);
+      await refresh();
+      onChanged();
+    } catch (e) {
+      onError(errorText(t, e));
+    }
+  };
+
   const addCustom = async () => {
     try {
       const res = await api.addCustomPrompts(customText);
@@ -332,6 +357,11 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             <Button startIcon={<PlaylistAddIcon />} onClick={() => setCustomOpen(true)} disabled={disabled || busy}>
               {t("studio.custom")}
             </Button>
+            {reviewQueue.length > 0 && (
+              <Button startIcon={<FactCheckIcon />} onClick={() => setReviewOpen(true)} disabled={disabled || busy} color="warning">
+                {t("studio.review", { n: reviewQueue.length })}
+              </Button>
+            )}
             <FormControlLabel control={<Switch checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} />} label={t("studio.autoplay")} />
             <TextField select size="small" label={t("studio.mic")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
               <MenuItem value="">{t("studio.micDefault")}</MenuItem>
@@ -355,6 +385,8 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           />
         </Stack>
       </CardContent>
+
+      <ReviewDialog open={reviewOpen} queue={reviewQueue} onClose={() => setReviewOpen(false)} onApprove={reviewApprove} onDelete={remove} onRedo={reviewRedo} />
 
       <Dialog open={customOpen} onClose={() => setCustomOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>{t("studio.customTitle")}</DialogTitle>

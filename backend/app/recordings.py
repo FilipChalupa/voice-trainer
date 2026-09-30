@@ -70,6 +70,7 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
         "id": rid,
         "text": entry.get("text", ""),
         "prompt_id": entry.get("prompt_id"),
+        "reviewed": bool(entry.get("reviewed")),
         "source": entry.get("source"),  # None = recorded here, "import" = from a dataset file, "transcribed" = cut from a long recording
         "created": entry.get("created") or datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
         "duration": info["duration"],
@@ -214,14 +215,18 @@ def get_audio(rid: str):
 async def put_recording(rid: str, body: dict[str, Any]):
     _check_id(rid)
     voice = require_voice()
-    text = re.sub(r"\s+", " ", str(body.get("text", "")).strip())
-    if len(text) < 3:
+    text = re.sub(r"\s+", " ", str(body.get("text", "")).strip()) if body.get("text") is not None else None
+    if text is not None and len(text) < 3:
         raise HTTPException(400, {"code": "text_required", "message": "The transcript of the recording is required"})
     with _lock:
         index = load_index(voice)
         if rid not in index:
             raise HTTPException(404, {"code": "not_found", "message": "Recording not found"})
-        index[rid]["text"] = text
+        if text is not None:
+            index[rid]["text"] = text
+        if "reviewed" in body:
+            # a person listened to it and confirmed the text; warnings then no longer queue it for review
+            index[rid]["reviewed"] = bool(body["reviewed"])
         save_index(voice, index)
     return describe(voice, rid, index[rid])
 
