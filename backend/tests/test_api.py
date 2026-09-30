@@ -155,6 +155,22 @@ def test_paragraphs_queue_in_order_and_lexicon_is_applied():
     assert apply_lexicon("Zapni wi-fi a HA. Haha.", payload["voice"]["lexicon"]) == "Zapni vaj faj a há á. Haha."
 
 
+def test_storage_overview_and_cleanup():
+    before = client.get("/api/storage").json()
+    assert before["total"] > 0 and before["voices"][0]["id"] == "filip" and before["voices"][0]["recordings"] > 0
+    assert before["disk_free"] > 0 and "checkpoints" in before["base"]
+    # one deleted take sits in the trash; emptying it frees space
+    rec = client.get("/api/recordings").json()["items"][0]
+    client.delete(f"/api/recordings/{rec['id']}")
+    with_trash = client.get("/api/storage").json()
+    assert with_trash["reclaimable"]["trash"] > 0
+    freed = client.post("/api/storage/empty-trash").json()["freed"]
+    assert freed > 0 and client.get("/api/storage").json()["reclaimable"]["trash"] == 0
+    assert client.post(f"/api/recordings/{rec['id']}/restore").status_code == 404
+    client.post("/api/recordings", data={"text": rec["text"], "prompt_id": rec["prompt_id"] or ""}, files={"file": ("a.wav", wav_bytes(), "audio/wav")})
+    assert client.post("/api/storage/clear-cache").json()["freed"] == 0
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False

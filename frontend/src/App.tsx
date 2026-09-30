@@ -18,6 +18,7 @@ import { ProgressSteps, type TabId } from "./components/ProgressSteps";
 import { TrainingChip } from "./components/TrainingChip";
 import { HelpDialog } from "./components/HelpDialog";
 import { EmptyState } from "./components/EmptyState";
+import { StorageCard } from "./components/StorageCard";
 import { SystemChip } from "./components/SystemChip";
 import { useTrainingStream } from "./lib/useTrainingStream";
 import { errorText, I18nProvider, useI18n, type Lang } from "./i18n";
@@ -174,6 +175,7 @@ function Main() {
               )}
               <DatasetCard report={report} disabled={running} onImported={onImported} onError={showError} />
               <TranscribeCard voiceId={voice.id} disabled={running} onImported={onImported} onError={showError} />
+              <StorageCard version={datasetVersion + jobs.length} disabled={running} onError={showError} onChanged={() => setDatasetVersion((v) => v + 1)} />
             </>
           )}
           {tab === "train" && voice && payload && (

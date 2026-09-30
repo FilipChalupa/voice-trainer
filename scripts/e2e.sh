@@ -20,7 +20,9 @@ run_pw() { # script name, output dir
     sh -c "cd /tmp && npm init -y >/dev/null && npm i -s playwright@1.52.0 >/dev/null && cp /e2e/$1 /tmp/ && node /tmp/$1 && chown -R $(id -u):$(id -g) /out"
 }
 
+# fresh voices every run (the downloaded models in data-test/base are kept, they are large)
 mkdir -p data-test
+rm -rf data-test/voices data-test/current_voice
 $COMPOSE up -d --build
 for i in $(seq 1 90); do curl -sf "http://localhost:$PORT/api/health" >/dev/null && break; sleep 2; done
 curl -sf "http://localhost:$PORT/api/health" >/dev/null || { echo "the test instance did not come up"; $COMPOSE logs --tail 50; exit 1; }

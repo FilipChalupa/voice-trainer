@@ -83,6 +83,17 @@ export type CheckState = {
   result: { job_id: string; variant: string; created_at: string; count: number; median: number; flagged: number; items: CheckRow[] } | null;
 };
 
+export type StorageJob = { job_id: string; checkpoints: number; exports: number; cache: number; previews: number; total: number };
+export type StorageInfo = {
+  total: number;
+  disk_free: number;
+  disk_total: number;
+  base: { checkpoints: number; whisper: number; base_voices: number; torch_hub: number; prompts: number };
+  base_total: number;
+  voices: { id: string; name: string; recordings: number; trash: number; jobs: StorageJob[]; jobs_total: number; cache_total: number; total: number }[];
+  reclaimable: { trash: number; cache: number };
+};
+
 export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
 
 export type Prompt = { id: string; text: string };
@@ -266,6 +277,9 @@ export const api = {
     return request<TranscribeState>("/api/transcribe", { method: "POST", body: form });
   },
   cancelTranscribe: () => request<TranscribeState>("/api/transcribe/cancel", { method: "POST" }),
+  storage: () => request<StorageInfo>("/api/storage"),
+  emptyTrash: () => request<{ freed: number }>("/api/storage/empty-trash", { method: "POST" }),
+  clearCache: () => request<{ freed: number }>("/api/storage/clear-cache", { method: "POST" }),
   importDataset: (zip: File) => {
     const form = new FormData();
     form.append("file", zip, zip.name);
