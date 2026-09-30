@@ -5,6 +5,8 @@ services:
     image: voice-trainer
     ports:
       - "${PORT:-8001}:8000"
+      # HTTPS with a self-signed certificate: needed for the microphone on a phone in the LAN
+      - "${HTTPS_PORT:-8444}:8443"
     volumes:
       - ./data:/data
     shm_size: "2gb"   # PyTorch data loader workers share tensors through /dev/shm
@@ -17,4 +19,7 @@ services:
       - PGID=${PGID:-1000}
       # finished training runs kept per voice (each keeps an ~850 MB checkpoint to continue from)
       - KEEP_JOBS=${KEEP_JOBS:-5}
+      # host name or IP the phone link should use (default: the address the browser is using)
+      - PUBLIC_HOST=${PUBLIC_HOST:-}
+      - PUBLIC_HTTPS_PORT=${HTTPS_PORT:-8444}
     restart: unless-stopped

@@ -110,6 +110,10 @@ def system_info() -> dict[str, Any]:
         "cpu_count": os.cpu_count(),
         "disk_free_gb": round(usage.free / (1 << 30), 1),
         "disk_total_gb": round(usage.total / (1 << 30), 1),
+        # for the phone link: the HTTPS listener exists when the entrypoint created a certificate
+        "https": (DATA_DIR / "tls" / "cert.pem").exists(),
+        "public_host": os.environ.get("PUBLIC_HOST") or None,
+        "public_https_port": int(os.environ.get("PUBLIC_HTTPS_PORT") or 8444),
     }
     _cache.update(at=now, value=value)
     return value

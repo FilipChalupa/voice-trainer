@@ -30,12 +30,18 @@ Only train voices of people who agreed to it.
    to train with other tools, and such a ZIP can be imported back. A long recording (an audiobook chapter, a voice
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
    are marked for review. The dataset overview warns when some takes are much louder, quieter or noisier than the
-   rest (a different microphone or room makes the trained voice uneven).
+   rest (a different microphone or room makes the trained voice uneven). A microphone test measures the room
+   noise and your level before a session, a review mode walks through flagged takes and machine transcripts
+   with the keyboard, and a phone in the same network can be used as the microphone (QR code, HTTPS with a
+   self-signed certificate).
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
    stopped (the current state is saved first), continued after a restart, or extended with more epochs. The
-   expected duration is shown before the start, calibrated by the previous run on the same machine.
+   expected duration is shown before the start, calibrated by the previous run on the same machine. A run
+   stops by itself when the validation loss has not improved for a number of validations (patience). Afterwards
+   the trained voice can read every training sentence back; takes it cannot reproduce (misread, wrong
+   transcript, noise) are listed for a listen and flagged in the recording list.
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints or with an older run
    (both read the same text back to back), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
@@ -64,7 +70,11 @@ cp .env.example .env        # enables the GPU override and sets port 8001
 docker compose up --build
 ```
 
-Open <http://localhost:8001>. The microphone only works on `localhost` or over HTTPS.
+Open <http://localhost:8001>. The microphone only works on `localhost` or over HTTPS; the app also listens on
+<https://localhost:8444> with a self-signed certificate (created in `data/tls` on first start, replace it with your
+own `cert.pem`/`key.pem` if you have one). That is the address for a phone in the same network: the studio shows
+it as a QR code. In WSL2 the port has to be reachable from the LAN (`networkingMode=mirrored` in `.wslconfig`, or
+a `netsh portproxy` rule) and `PUBLIC_HOST` in `.env` should be the Windows IP.
 
 Without a GPU: `docker compose -f docker-compose.yml up --build`.
 
@@ -108,7 +118,8 @@ services:
 
 ```
 backend/app        FastAPI: voices + consent, prompts, recordings (+ dataset export/import), importer (Whisper),
-                   base checkpoints, jobs (manager + SSE), synthesis/export, system info, static frontend
+                   base checkpoints, jobs (manager + SSE), check (model vs. recordings), synthesis/export,
+                   system info, serve.py (HTTP + HTTPS listeners), static frontend
 backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py + onnx_export.py (ONNX export),
                    transcribe.py (Whisper transcript + sentence cutting)
 backend/tests      pytest suite (no PyTorch needed: pip install -r backend/requirements-dev.txt)
@@ -130,6 +141,8 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | GET / POST | `/api/base` · `/api/base/{lang}/download` | Base checkpoints |
 | POST / GET | `/api/train` · `/api/train/resume` · `/api/train/cancel` · `/api/train/status` (SSE) · `/api/train/calibration` | Training |
 | GET / POST / DELETE | `/api/jobs` · `/api/jobs/{id}/export` · `/api/jobs/{id}/bundle` · `…/previews/…` | Runs, previews, exported voices |
+| POST / GET | `/api/jobs/{id}/check` · `…/check/audio/{rid}` | Recording check with the trained voice |
+| GET | `/api/dataset/export/blocks` | Recordings joined into MP3 blocks for cloud voice cloning services |
 | POST | `/api/synthesize` | Text to speech with an exported voice |
 | GET | `/api/system` | GPU, disk space, version |
 

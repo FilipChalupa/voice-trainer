@@ -189,6 +189,9 @@ export type SystemInfo = {
   cpu_count: number | null;
   disk_free_gb: number;
   disk_total_gb: number;
+  https: boolean;
+  public_host: string | null;
+  public_https_port: number;
 };
 
 export class ApiError extends Error {
