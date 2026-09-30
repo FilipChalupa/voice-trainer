@@ -43,7 +43,9 @@ export function TestCard({ jobs, onError }: Props) {
     if (job && !edited) setText(DEFAULT_TEXT[job.language] ?? DEFAULT_TEXT.en);
   }, [job, edited]);
   useEffect(() => {
-    if (job && !job.exports.some((e) => e.file === file)) setFile((job.exports.find((e) => e.variant === "last") ?? job.exports[0]).file);
+    // a run that stopped early is best represented by its best checkpoint, not by the last epoch
+    const preferred = job?.stopped_early ? "best_mel" : "last";
+    if (job && !job.exports.some((e) => e.file === file)) setFile((job.exports.find((e) => e.variant === preferred) ?? job.exports[0]).file);
   }, [job, file]);
 
   const play = (urls: string[]) => {

@@ -86,6 +86,7 @@ DEFAULT_TRAINING = {
     "validation_every": 10,  # epochs between validation + checkpoint
     "preview_every": 50,  # epochs between audible previews (multiple of validation_every)
     "learning_rate": 0.0002,
+    "patience": 5,  # validations without a better val_mel before the run stops by itself (0 = never)
 }
 
 MIN_MINUTES = 5.0  # hard minimum to start training
@@ -190,6 +191,7 @@ def save_settings(voice: Voice, update: dict[str, Any]) -> dict[str, Any]:
         t["epochs"] = max(10, min(20000, t["epochs"]))
         t["batch_size"] = max(2, min(64, t["batch_size"]))
         t["validation_every"] = max(1, min(200, t["validation_every"]))
+        t["patience"] = max(0, min(100, t["patience"]))
         t["preview_every"] = max(t["validation_every"], (t["preview_every"] // t["validation_every"]) * t["validation_every"])
     write_settings(voice, settings)
     return settings

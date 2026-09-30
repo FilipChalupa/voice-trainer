@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import tempfile
 import threading
 import time
@@ -451,3 +452,67 @@ async def import_dataset(file: UploadFile = File(...)):
         os.unlink(tmp)
     items = list_recordings(voice)
     return {"imported": imported, "skipped": skipped, "consent_imported": consent_imported, "count": len(items), "minutes": round(total_minutes(items), 2)}
+
+
+# ----- blocks for cloud voice cloning ---------------------------------------
+BLOCK_SECONDS = 8 * 60  # ~7.7 MB of 128 kbps MP3, under the per-file limit of the cloning services
+BLOCK_PAUSE = 0.6
+BLOCKS_README = """{name} - {count} recordings ({minutes} min) joined into {blocks} MP3 block(s) of up to 8 minutes
+
+Cloud voice cloning services (ElevenLabs and others) do not accept a trained model, only audio samples of the
+voice. They prefer a few longer files over hundreds of short ones, so the sentences are joined here with short
+pauses. block_NN.txt holds the sentences of each block in order.
+
+ElevenLabs: Voices -> Add a new voice -> Instant Voice Cloning (1-3 minutes of audio are enough) or Professional
+Voice Cloning (30 minutes to 3 hours, better quality, includes a verification that it is your own voice).
+Upload the block files there. Check their current limits and terms; they change.
+
+Voice owner: {owner}. Only clone a voice with the permission of its owner.
+"""
+
+
+def _mp3(audio, sample_rate: int) -> bytes:
+    import numpy as np
+
+    pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes()
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-f", "s16le", "-ar", str(sample_rate), "-ac", "1", "-i", "-", "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "-"]
+    return subprocess.run(cmd, input=pcm, capture_output=True, check=True).stdout
+
+
+@router.get("/dataset/export/blocks")
+def export_blocks():
+    """The recordings joined into long MP3 blocks, the input format of cloud voice cloning services."""
+    import numpy as np
+    import soundfile as sf
+
+    voice = require_voice()
+    items = list_recordings(voice)
+    if not items:
+        raise HTTPException(404, {"code": "no_recordings", "message": "There are no recordings to export"})
+    settings = load_settings(voice)
+    slug = slugify(settings["name"])
+    pause = np.zeros(int(SAMPLE_RATE * BLOCK_PAUSE), dtype=np.float32)
+    blocks: list[tuple[list, list[str]]] = [([], [])]
+    seconds = 0.0
+    for r in items:
+        data, sr = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
+        audio = data[:, 0]
+        if seconds > 0 and seconds + len(audio) / sr > BLOCK_SECONDS:
+            blocks.append(([], []))
+            seconds = 0.0
+        blocks[-1][0].extend([audio, pause])
+        blocks[-1][1].append(r["text"])
+        seconds += len(audio) / sr + BLOCK_PAUSE
+    fd, tmp = tempfile.mkstemp(prefix="blocks-", suffix=".zip")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as zf:
+            for n, (parts, texts) in enumerate(blocks, start=1):
+                zf.writestr(f"{slug}_block_{n:02d}.mp3", _mp3(np.concatenate(parts), SAMPLE_RATE))
+                zf.writestr(f"{slug}_block_{n:02d}.txt", "\n".join(texts) + "\n")
+            minutes = round(total_minutes(items), 1)
+            zf.writestr("README.txt", BLOCKS_README.format(name=settings["name"], count=len(items), minutes=minutes, blocks=len(blocks), owner=settings["owner"]))
+    except Exception:
+        os.unlink(tmp)
+        raise
+    return FileResponse(tmp, media_type="application/zip", filename=f"{slug}-voice-samples.zip", background=BackgroundTask(os.unlink, tmp))

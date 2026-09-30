@@ -44,6 +44,7 @@ const FIELDS: { key: keyof TrainingParams; step: number; min: number }[] = [
   { key: "validation_every", step: 5, min: 1 },
   { key: "preview_every", step: 10, min: 1 },
   { key: "learning_rate", step: 0.00005, min: 0.00001 },
+  { key: "patience", step: 1, min: 0 },
 ];
 
 function duration(seconds: number): string {
@@ -258,7 +259,10 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
           {mine && !running && state.resumable && state.status !== "idle" && (
             <Alert severity={state.status === "done" ? "success" : "warning"} variant="outlined">
               <Stack spacing={1}>
-                <Typography variant="body2">{state.status === "done" ? t("train.done") : t("train.resumeHint")}</Typography>
+                <Typography variant="body2">
+                  {state.status === "done" ? t("train.done") : t("train.resumeHint")}
+                  {state.status === "done" && state.stopped_early ? ` ${t("train.stoppedEarly", { epoch: state.epoch, patience: voice.training.patience })}` : ""}
+                </Typography>
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   {state.status !== "done" && (
                     <Button variant="contained" size="small" startIcon={<RestartAltIcon />} onClick={() => call(() => api.resumeTraining(0))} disabled={busy}>

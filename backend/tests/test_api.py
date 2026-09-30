@@ -102,6 +102,18 @@ def test_dataset_export_is_ljspeech_zip():
     assert sf.info(io.BytesIO(zf.read(wavs[0]))).samplerate == 22050
 
 
+def test_blocks_export_joins_recordings_to_mp3():
+    import zipfile
+
+    res = client.get("/api/dataset/export/blocks")
+    assert res.status_code == 200
+    zf = zipfile.ZipFile(io.BytesIO(res.content))
+    names = zf.namelist()
+    mp3s = [n for n in names if n.endswith(".mp3")]
+    assert len(mp3s) == 1 and "README.txt" in names and zf.read(mp3s[0])[:3] in (b"ID3", b"\xff\xfb", b"\xff\xf3")
+    assert zf.read(mp3s[0].replace(".mp3", ".txt")).decode().strip() == client.get("/api/recordings").json()["items"][0]["text"]
+
+
 def test_dataset_import_round_trip():
     import zipfile
 

@@ -89,12 +89,17 @@ export function DatasetCard({ version, disabled, onImported, onError }: Props) {
                 {t("ds.export")}
               </Button>
             )}
+            {report.count > 0 && (
+              <Button variant="outlined" size="small" href="/api/dataset/export/blocks" download startIcon={<DownloadIcon />}>
+                {t("ds.exportBlocks")}
+              </Button>
+            )}
             <Button variant="outlined" size="small" component="label" startIcon={<UploadIcon />} disabled={disabled || importing}>
               {importing ? t("ds.importing") : t("ds.import")}
               <input ref={fileRef} type="file" accept=".zip,application/zip" hidden onChange={(e) => importZip(e.target.files?.[0])} />
             </Button>
             <Typography variant="caption" color="text.secondary">
-              {t("ds.exportHint")}
+              {t("ds.exportHint")} {t("ds.exportBlocksHint")}
             </Typography>
           </Stack>
           {result && (

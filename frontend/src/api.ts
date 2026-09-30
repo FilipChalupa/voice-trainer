@@ -4,6 +4,7 @@ export type TrainingParams = {
   validation_every: number;
   preview_every: number;
   learning_rate: number;
+  patience: number;
 };
 
 export type Consent = { text: string; owner: string; at: string; duration: number };
@@ -136,6 +137,7 @@ export type TrainingState = {
   exports: ExportedVoice[];
   bundle_url: string | null;
   resumable: boolean;
+  stopped_early: boolean;
   device: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -162,6 +164,7 @@ export type Job = {
   exports: ExportedVoice[];
   bundle_url: string | null;
   resumable: boolean;
+  stopped_early: boolean;
   previews: number;
 };
 

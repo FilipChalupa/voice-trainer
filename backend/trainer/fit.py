@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 import torch
-from lightning.pytorch.callbacks import Callback, ModelCheckpoint
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from lightning.pytorch.cli import LightningCLI
 from piper.train.vits.dataset import VitsDataModule
 from piper.train.vits.lightning import VitsModel
@@ -52,6 +52,7 @@ class ProgressCallback(Callback):
         self.stop_file = Path(os.environ["VT_STOP_FILE"]) if os.environ.get("VT_STOP_FILE") else None
         self.checkpoint_dir = Path(os.environ.get("VT_CHECKPOINT_DIR", "checkpoints"))
         self._stopped = False
+        self.patience = int(os.environ.get("VT_PATIENCE", "0") or 0)
 
     # ----- progress -----
     def on_train_start(self, trainer, pl_module) -> None:
@@ -71,6 +72,11 @@ class ProgressCallback(Callback):
             return
         self._last_step_emit = now
         emit("step", epoch=int(trainer.current_epoch), batch=int(batch_idx) + 1, batches=int(trainer.num_training_batches))
+
+    def on_train_end(self, trainer, pl_module) -> None:
+        # EarlyStopping only sets should_stop; report it so the run history can say why the run is shorter
+        if trainer.should_stop and not self._stopped and int(trainer.current_epoch) + 1 < int(trainer.max_epochs):
+            emit("early_stop", epoch=int(trainer.current_epoch) + 1, patience=self.patience)
 
     def on_train_epoch_end(self, trainer, pl_module) -> None:
         m = trainer.callback_metrics
@@ -165,6 +171,10 @@ def main() -> None:
         OptionalMetricCheckpoint(dirpath=ckpt_dir, monitor="val_mos", mode="max", save_top_k=1, save_last=False, filename="best_mos-epoch={epoch}", auto_insert_metric_name=False),
         ProgressCallback(),
     ]
+    patience = int(os.environ.get("VT_PATIENCE", "0") or 0)
+    if patience > 0:
+        # counted in validations, so with validation every 10 epochs a patience of 5 means 50 epochs without progress
+        callbacks.append(EarlyStopping(monitor="val_mel", mode="min", patience=patience, check_on_train_epoch_end=False, verbose=False))
     VitsLightningCLI(VitsModel, VitsDataModule, trainer_defaults={"max_epochs": -1, "callbacks": callbacks})
 
 

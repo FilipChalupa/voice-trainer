@@ -21,6 +21,7 @@ export const EMPTY_STATE: TrainingState = {
   exports: [],
   bundle_url: null,
   resumable: false,
+  stopped_early: false,
   device: null,
   started_at: null,
   finished_at: null,

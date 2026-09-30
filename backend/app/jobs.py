@@ -106,6 +106,7 @@ def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | N
         "exports": exports,
         "bundle_url": f"/api/jobs/{job['job_id']}/bundle" if exports else None,
         "resumable": has_last and status in ("interrupted", "cancelled", "failed", "done"),
+        "stopped_early": bool(result.get("stopped_early")),
         "previews": len(list_previews(job_dir, job["job_id"])),
     }
 
@@ -174,6 +175,7 @@ class JobManager:
             "started_at": None,
             "finished_at": None,
             "epoch_seconds": None,
+            "stopped_early": False,
             "error": None,
         }
 
@@ -431,6 +433,7 @@ class JobManager:
             "VT_ESPEAK_VOICE": job["espeak_voice"],
             "VT_TEST_SENTENCES": json.dumps(job.get("test_sentences") or [], ensure_ascii=False),
             "VT_STOP_FILE": str(job_dir / STOP_FILE),
+            "VT_PATIENCE": str(int(job["training"].get("patience", 0))),
             "TORCH_HOME": str(Path(job["base_checkpoint"]).parent / "torch_hub"),
         })
         (job_dir / STOP_FILE).unlink(missing_ok=True)
@@ -569,6 +572,9 @@ class JobManager:
                 self.state["resumable"] = True
             self._publish("state", {"validation": self.state["validation"], "resumable": True})
             self._log(f"Epoch {entry['epoch']}: val_mel {entry['val_mel']}, val_mos {entry['val_mos']}")
+        elif kind == "early_stop":
+            self._update(stopped_early=True)
+            self._log(f"Stopped early at epoch {ev.get('epoch')}: val_mel did not improve for {ev.get('patience')} validations")
         elif kind == "stopped":
             self._log(f"Stopped at epoch {int(ev.get('epoch', 0)) + 1}, batch {ev.get('batch')}; checkpoint saved")
         elif kind == "preview":
@@ -592,6 +598,7 @@ class JobManager:
             "validation": self.state.get("validation"),
             # typical epoch length of this run, used to estimate the next one
             "epoch_seconds": times[len(times) // 2] if times else None,
+            "stopped_early": bool(self.state.get("stopped_early")),
             "device": self.state.get("device"),
         }
         (job_dir / "result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
