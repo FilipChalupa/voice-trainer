@@ -44,6 +44,7 @@ COPY backend/requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY backend/ ./
+COPY scripts/ ./scripts/
 COPY VERSION ./VERSION
 COPY --from=frontend /app/dist ./static
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

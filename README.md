@@ -54,6 +54,8 @@ Only train voices of people who agreed to it.
 | ![Recording studio](docs/screenshots/studio.png) | ![Training with live charts and previews](docs/screenshots/training.png) |
 | **Voice and consent** | **Test & export** |
 | ![Voice and consent](docs/screenshots/voice.png) | ![Test and export](docs/screenshots/test.png) |
+| **Dataset overview** | **Long recording import** |
+| ![Dataset overview](docs/screenshots/dataset.png) | ![Long recording import](docs/screenshots/transcribe.png) |
 
 Sentences come from the Common Voice sentence collection (CC0), filtered and ordered for phonetic variety. A short
 built-in set works offline.
@@ -127,6 +129,9 @@ backend/trainer    fit.py (Piper trainer with progress/preview callbacks), expor
                    transcribe.py (Whisper transcript + sentence cutting)
 backend/tests      pytest suite (no PyTorch needed: pip install -r backend/requirements-dev.txt)
 frontend           Vite + React + TypeScript + Material UI, Czech/English, light/dark by system setting
+scripts            e2e.sh runs the smoke test (and with --screenshots a demo dataset, a short training and the README
+                   screenshots) on a throw-away instance: ports 8101/8544, data in ./data-test, never the one you
+                   record in; demo_dataset.py fills a voice with synthetic takes (runs inside the container)
 tests/e2e          Playwright smoke test used in CI, screenshots.js re-creates the README screenshots
 data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,consent.wav}
 ```

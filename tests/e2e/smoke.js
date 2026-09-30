@@ -25,8 +25,24 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
       if (!text.includes(title)) throw new Error(`Tab ${tab}: missing "${title}"`);
     }
   }
+  // the studio's dialogs open and close
+  await page.getByRole("tab", { name: "Recording" }).click();
+  await page.waitForTimeout(1000);
+  for (const [button, expected] of [
+    ["Paragraphs", "Connected texts to read"],
+    ["Microphone test", "Microphone and room test"],
+    ["Record with a phone", "Recording with a phone"],
+    ["Custom sentences", "Add your own sentences"],
+  ]) {
+    await page.getByRole("button", { name: button }).click();
+    await page.waitForTimeout(800);
+    const dialog = page.getByRole("dialog");
+    if (!(await dialog.innerText()).includes(expected)) throw new Error(`Dialog ${button}: missing "${expected}"`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+  }
   if (errors.length) throw new Error(`Page errors: ${errors.join("; ")}`);
-  console.log("OK: all tabs rendered");
+  console.log("OK: all tabs rendered, dialogs open");
   await browser.close();
 })().catch((e) => {
   console.error(e);

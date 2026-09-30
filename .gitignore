@@ -16,3 +16,6 @@ frontend/dist/
 # misc
 .env
 .DS_Store
+
+# throw-away instance of scripts/e2e.sh
+data-test/

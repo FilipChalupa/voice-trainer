@@ -1,0 +1,15 @@
+# A second, throw-away instance for end-to-end checks and screenshots: its own ports and data folder, so the
+# instance you record in is never restarted or switched to another voice.
+#   docker compose -p vt-test -f docker-compose.yml -f docker-compose.gpu.yml -f docker-compose.test.yml up -d --build
+# or simply: scripts/e2e.sh [--screenshots] [--keep]
+services:
+  app:
+    ports: !override
+      - "${TEST_PORT:-8101}:8000"
+      - "${TEST_HTTPS_PORT:-8544}:8443"
+    volumes: !override
+      - ./data-test:/data
+    environment:
+      - PUBLIC_HTTPS_PORT=${TEST_HTTPS_PORT:-8544}
+      - VT_OFFLINE=${VT_OFFLINE:-}
+    restart: "no"
