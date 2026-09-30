@@ -27,12 +27,17 @@ Only train voices of people who agreed to it.
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
    add your own sentences. 5 minutes is the minimum, 30 minutes is recommended, 60 minutes is ideal.
    The recordings with their texts can be downloaded as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`)
-   to train with other tools.
+   to train with other tools, and such a ZIP can be imported back. A long recording (an audiobook chapter, a voice
+   memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
+   are marked for review. The dataset overview warns when some takes are much louder, quieter or noisier than the
+   rest (a different microphone or room makes the trained voice uneven).
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
-   stopped, continued after a restart, or extended with more epochs.
-4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, then download
+   stopped (the current state is saved first), continued after a restart, or extended with more epochs. The
+   expected duration is shown before the start, calibrated by the previous run on the same machine.
+4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints or with an older run
+   (both read the same text back to back), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |
@@ -49,7 +54,8 @@ built-in set works offline.
 - Docker with Compose.
 - An NVIDIA GPU with 8 GB+ of VRAM and `nvidia-container-toolkit` for training (works in WSL2). Recording and testing
   work without a GPU; training on a CPU is impractically slow.
-- About 12 GB of disk for the image and the base checkpoint, plus ~1–4 GB per training run.
+- About 12 GB of disk for the image and the base checkpoint, plus ~1–4 GB per training run and 1.6 GB for the
+  Whisper model if you import long recordings.
 
 ## Quick start
 
@@ -91,17 +97,20 @@ services:
 - Default: 500 epochs, batch size 16. On an RTX 3080 with 30 minutes of audio an epoch takes a few seconds.
 - A checkpoint is ~850 MB. Each run keeps the latest one (to continue from); the best-by-quality checkpoints are
   exported to ONNX and then removed. `KEEP_JOBS` (default 5) limits how many finished runs are kept per voice.
-- The checkpoint to continue from is written at every validation, so stopping a run loses the epochs since the
-  last one.
+- The checkpoint to continue from is written at every validation and when you stop a run; a crash or a server
+  restart loses the epochs since the last validation.
+- Long recordings are transcribed with `openai-whisper` (`turbo` model by default, `VT_WHISPER_MODEL` to change it)
+  on the GPU when one is available; training and transcription do not run at the same time.
 - The estimated MOS uses UTMOS, downloaded on first use. If it cannot be loaded, training still works and only the
   mel loss is shown.
 
 ## Project layout
 
 ```
-backend/app        FastAPI: voices + consent, prompts, recordings, base checkpoints, jobs (manager + SSE),
-                   synthesis/export, system info, static frontend
-backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py + onnx_export.py (ONNX export)
+backend/app        FastAPI: voices + consent, prompts, recordings (+ dataset export/import), importer (Whisper),
+                   base checkpoints, jobs (manager + SSE), synthesis/export, system info, static frontend
+backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py + onnx_export.py (ONNX export),
+                   transcribe.py (Whisper transcript + sentence cutting)
 backend/tests      pytest suite (no PyTorch needed: pip install -r backend/requirements-dev.txt)
 frontend           Vite + React + TypeScript + Material UI, Czech/English, light/dark by system setting
 tests/e2e          Playwright smoke test used in CI, screenshots.js re-creates the README screenshots
@@ -116,9 +125,10 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | POST / GET / DELETE | `/api/consent` · `/api/consent/audio` | Spoken consent of the voice owner |
 | GET / POST | `/api/prompts` · `/api/prompts/custom` · `/api/prompts/{id}/skip` | Sentences to read |
 | GET / POST / PUT / DELETE | `/api/recordings` · `/api/recordings/{id}` · `…/audio` · `…/restore` | Recordings with transcripts |
-| GET | `/api/dataset` · `/api/dataset/export` | Dataset report and readiness, recordings + transcripts as a ZIP (LJSpeech layout) |
+| GET / POST | `/api/dataset` · `/api/dataset/export` · `/api/dataset/import` | Dataset report, recordings + transcripts as a ZIP (LJSpeech layout) and back |
+| POST / GET | `/api/transcribe` · `/api/transcribe/cancel` | Long recording → Whisper transcript → sentence recordings |
 | GET / POST | `/api/base` · `/api/base/{lang}/download` | Base checkpoints |
-| POST / GET | `/api/train` · `/api/train/resume` · `/api/train/cancel` · `/api/train/status` (SSE) | Training |
+| POST / GET | `/api/train` · `/api/train/resume` · `/api/train/cancel` · `/api/train/status` (SSE) · `/api/train/calibration` | Training |
 | GET / POST / DELETE | `/api/jobs` · `/api/jobs/{id}/export` · `/api/jobs/{id}/bundle` · `…/previews/…` | Runs, previews, exported voices |
 | POST | `/api/synthesize` | Text to speech with an exported voice |
 | GET | `/api/system` | GPU, disk space, version |

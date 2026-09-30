@@ -102,6 +102,30 @@ def test_dataset_export_is_ljspeech_zip():
     assert sf.info(io.BytesIO(zf.read(wavs[0]))).samplerate == 22050
 
 
+def test_dataset_import_round_trip():
+    import zipfile
+
+    exported = client.get("/api/dataset/export").content
+    before = client.get("/api/recordings").json()["count"]
+    # a hand-made archive in the plain LJSpeech layout, plus a row without audio
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("wavs/take1.wav", wav_bytes())
+        zf.writestr("wavs/take2.flac", wav_bytes(seconds=2.0))
+        zf.writestr("metadata.csv", "take1|První importovaná věta.|První importovaná věta.\ntake2.flac|Druhá věta.\nghost|Bez zvuku.\n")
+    res = client.post("/api/dataset/import", files={"file": ("d.zip", buf.getvalue(), "application/zip")}).json()
+    assert res["imported"] == 2 and res["skipped"] == [{"id": "ghost", "reason": "missing_audio"}] and res["count"] == before + 2
+    items = client.get("/api/recordings").json()["items"]
+    assert sorted(r["text"] for r in items if r["source"] == "import") == ["Druhá věta.", "První importovaná věta."]
+    # our own export imports back as well
+    res = client.post("/api/dataset/import", files={"file": ("e.zip", exported, "application/zip")}).json()
+    assert res["imported"] == before and res["consent_imported"] is False  # the consent exists already
+    assert client.post("/api/dataset/import", files={"file": ("x.zip", b"nope", "application/zip")}).json()["detail"]["code"] == "bad_zip"
+    for r in client.get("/api/recordings").json()["items"]:
+        if r["source"] == "import":
+            client.delete(f"/api/recordings/{r['id']}")
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False

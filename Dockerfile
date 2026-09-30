@@ -33,9 +33,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # torchaudio is needed by the optional UTMOS quality predictor used during validation (val_mos).
 # It lags behind torch releases, so it is pinned and installed without touching torch itself.
+# openai-whisper transcribes imported long recordings; it runs on the torch already installed.
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-deps torchaudio==2.11.0 \
-    && python3 -c "import torch, torchaudio; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__)"
+    && pip install openai-whisper==20250625 \
+    && python3 -c "import torch, torchaudio, whisper; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__, 'whisper', whisper.__version__)"
 
 WORKDIR /app
 COPY backend/requirements.txt ./

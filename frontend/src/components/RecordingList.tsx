@@ -58,6 +58,11 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                 <Typography variant="caption" color="text.secondary">
                   #{items.length - idx} · {rec.duration.toFixed(1)} s · {t("rec.peakInfo", { peak: Math.round((rec.quality.peak ?? 0) * 100), db: rec.quality.rms_db ?? 0 })}
                 </Typography>
+                {rec.source && (
+                  <Tooltip title={t(`rec.sourceHint.${rec.source}` as TKey)}>
+                    <Chip size="small" color={rec.source === "transcribed" ? "info" : "default"} variant="outlined" label={t(`rec.source.${rec.source}` as TKey)} sx={{ height: 18, fontSize: 11 }} />
+                  </Tooltip>
+                )}
                 {rec.quality.issues.map((issue) => (
                   <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
                     <Chip size="small" color="warning" variant="outlined" label={t(`rec.issue.${issue}` as TKey)} sx={{ height: 18, fontSize: 11 }} />

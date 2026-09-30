@@ -6,6 +6,7 @@ import { api, type Job, type SystemInfo, type VoicesPayload } from "./api";
 import { VoiceCard } from "./components/VoiceCard";
 import { StudioCard } from "./components/StudioCard";
 import { DatasetCard } from "./components/DatasetCard";
+import { TranscribeCard } from "./components/TranscribeCard";
 import { TrainingCard } from "./components/TrainingCard";
 import { JobsCard } from "./components/JobsCard";
 import { TestCard } from "./components/TestCard";
@@ -69,6 +70,17 @@ function Main() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // an import adds recordings behind the studio's back, so the studio is re-mounted to reload its list
+  const [importCount, setImportCount] = useState(0);
+  const onImported = useCallback(() => {
+    setImportCount((v) => v + 1);
+    setDatasetVersion((v) => v + 1);
+    api
+      .voices()
+      .then(setPayload)
+      .catch(() => undefined);
+  }, []);
+
   const onVoices = useCallback(
     (p: VoicesPayload) => {
       setPayload(p);
@@ -127,8 +139,9 @@ function Main() {
           {tab !== "voice" && !voice && <Alert severity="info">{t("app.noVoice")}</Alert>}
           {tab === "record" && voice && payload && (
             <>
-              <StudioCard key={voice.id} voice={voice} minutes={payload.minutes} disabled={running} onChanged={() => setDatasetVersion((v) => v + 1)} onError={showError} />
-              <DatasetCard version={datasetVersion} />
+              <StudioCard key={`${voice.id}-${importCount}`} voice={voice} minutes={payload.minutes} disabled={running} onChanged={() => setDatasetVersion((v) => v + 1)} onError={showError} />
+              <DatasetCard version={datasetVersion} disabled={running} onImported={onImported} onError={showError} />
+              <TranscribeCard voiceId={voice.id} disabled={running} onImported={onImported} onError={showError} />
             </>
           )}
           {tab === "train" && voice && payload && (

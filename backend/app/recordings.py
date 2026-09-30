@@ -19,8 +19,8 @@ from starlette.background import BackgroundTask
 
 from . import prompts
 from .audio import analyze, has_speech, normalize_wav, trim_edges
-from .config import LANGUAGES, MIN_MINUTES, RECOMMENDED_MINUTES, SAMPLE_RATE, TARGET_MINUTES, Voice, load_settings, now, slugify
-from .voices import has_consent, require_voice
+from .config import LANGUAGES, MIN_MINUTES, RECOMMENDED_MINUTES, SAMPLE_RATE, TARGET_MINUTES, Voice, load_settings, now, slugify, write_settings
+from .voices import consent_statement, has_consent, require_voice
 
 router = APIRouter(prefix="/api", tags=["recordings"])
 
@@ -69,6 +69,7 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
         "id": rid,
         "text": entry.get("text", ""),
         "prompt_id": entry.get("prompt_id"),
+        "source": entry.get("source"),  # None = recorded here, "import" = from a dataset file, "transcribed" = cut from a long recording
         "created": entry.get("created") or datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
         "duration": info["duration"],
         "url": f"/api/recordings/{rid}/audio",
@@ -124,13 +125,11 @@ def get_recordings():
     return {"items": items, "count": len(items), "minutes": round(total_minutes(items), 2)}
 
 
-@router.post("/recordings")
-async def upload_recording(file: UploadFile = File(...), text: str = Form(...), prompt_id: str | None = Form(None)):
-    voice = require_voice()
+def store_recording(voice: Voice, raw: bytes, text: str, prompt_id: str | None = None, source: str | None = None) -> dict[str, Any]:
+    """Normalises, trims and files one recording; the transcript is stored with it."""
     text = re.sub(r"\s+", " ", text.strip())
     if len(text) < 3:
         raise HTTPException(400, {"code": "text_required", "message": "The transcript of the recording is required"})
-    raw = await file.read()
     if not raw:
         raise HTTPException(400, {"code": "empty_upload", "message": "Empty upload"})
     try:
@@ -152,9 +151,17 @@ async def upload_recording(file: UploadFile = File(...), text: str = Form(...), 
                 if entry.get("prompt_id") == prompt_id:
                     _to_trash(voice, old_id)
                     index.pop(old_id, None)
-        index[rid] = {"text": text, "prompt_id": prompt_id or prompts.prompt_id(text), "created": datetime.now(timezone.utc).isoformat()}
+        entry = {"text": text, "prompt_id": prompt_id or prompts.prompt_id(text), "created": datetime.now(timezone.utc).isoformat()}
+        if source:
+            entry["source"] = source
+        index[rid] = entry
         save_index(voice, index)
     return describe(voice, rid, index[rid])
+
+
+@router.post("/recordings")
+async def upload_recording(file: UploadFile = File(...), text: str = Form(...), prompt_id: str | None = Form(None)):
+    return store_recording(require_voice(), await file.read(), text, prompt_id)
 
 
 def _trash_dir(voice: Voice) -> Path:
@@ -363,3 +370,84 @@ def export_dataset():
         os.unlink(tmp)
         raise
     return FileResponse(tmp, media_type="application/zip", filename=f"{slug}-dataset.zip", background=BackgroundTask(os.unlink, tmp))
+
+
+AUDIO_EXT = (".wav", ".flac", ".mp3", ".ogg", ".opus", ".m4a", ".webm")
+
+
+def _parse_metadata(text: str) -> list[tuple[str, str]]:
+    """Rows of ``id|text`` or ``id|text|normalised text`` (LJSpeech) or ``file.wav|text`` (Piper)."""
+    rows = []
+    for line in text.splitlines():
+        parts = [c.strip() for c in line.split("|")]
+        if len(parts) < 2 or not parts[0]:
+            continue
+        name = parts[0]
+        for ext in AUDIO_EXT:
+            if name.lower().endswith(ext):
+                name = name[: -len(ext)]
+        sentence = next((c for c in reversed(parts[1:]) if c), "")
+        if sentence:
+            rows.append((name, sentence))
+    return rows
+
+
+@router.post("/dataset/import")
+async def import_dataset(file: UploadFile = File(...)):
+    """Adds the recordings of a ZIP in the LJSpeech layout (as written by the export) to the current voice."""
+    voice = require_voice()
+    settings = load_settings(voice)
+    fd, tmp = tempfile.mkstemp(prefix="import-", suffix=".zip")
+    imported, skipped, consent_imported = 0, [], False
+    try:
+        with os.fdopen(fd, "wb") as out:
+            while chunk := await file.read(1 << 20):
+                out.write(chunk)
+        try:
+            zf = zipfile.ZipFile(tmp)
+        except zipfile.BadZipFile as exc:
+            raise HTTPException(400, {"code": "bad_zip", "message": "The file is not a ZIP archive"}) from exc
+        with zf:
+            names = [n for n in zf.namelist() if not n.endswith("/")]
+            by_base = {n.split("/")[-1].lower(): n for n in names}
+            metadata = next((by_base[k] for k in ("metadata.csv", "metadata_piper.csv") if k in by_base), None)
+            if metadata is None:
+                metadata = next((n for n in names if n.lower().endswith(".csv")), None)
+            if metadata is None:
+                raise HTTPException(400, {"code": "no_metadata", "message": "The archive has no metadata.csv with the transcripts"})
+            rows = _parse_metadata(zf.read(metadata).decode("utf-8-sig", errors="replace"))
+            if not rows:
+                raise HTTPException(400, {"code": "no_metadata", "message": "metadata.csv has no usable rows"})
+            audio_by_stem: dict[str, str] = {}
+            for n in names:
+                base = n.split("/")[-1]
+                stem, dot, ext = base.rpartition(".")
+                if dot and f".{ext.lower()}" in AUDIO_EXT and stem.lower() not in audio_by_stem:
+                    audio_by_stem[stem.lower()] = n
+            for name, sentence in rows:
+                member = audio_by_stem.get(name.lower())
+                if member is None:
+                    skipped.append({"id": name, "reason": "missing_audio"})
+                    continue
+                try:
+                    store_recording(voice, zf.read(member), sentence, source="import")
+                    imported += 1
+                except HTTPException as exc:
+                    detail = exc.detail if isinstance(exc.detail, dict) else {}
+                    skipped.append({"id": name, "reason": detail.get("code", "error")})
+            # the owner's consent travels with an export of the same person
+            info = json.loads(zf.read(by_base["dataset.json"])) if "dataset.json" in by_base else {}
+            consent = info.get("consent") if isinstance(info, dict) else None
+            if consent and "consent.wav" in by_base and not has_consent(voice) and consent.get("owner") == settings["owner"]:
+                try:
+                    wav, duration = normalize_wav(zf.read(by_base["consent.wav"]))
+                    voice.consent_file.write_bytes(wav)
+                    settings["consent"] = {"text": consent_statement(voice), "owner": settings["owner"], "at": consent.get("at") or now(), "duration": round(duration, 2), "imported": True}
+                    write_settings(voice, settings)
+                    consent_imported = True
+                except Exception:  # noqa: BLE001  (a broken consent file just is not imported)
+                    pass
+    finally:
+        os.unlink(tmp)
+    items = list_recordings(voice)
+    return {"imported": imported, "skipped": skipped, "consent_imported": consent_imported, "count": len(items), "minutes": round(total_minutes(items), 2)}

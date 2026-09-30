@@ -268,6 +268,7 @@ class JobManager:
     def start(self) -> dict[str, Any]:
         if self.is_running():
             raise HTTPException(409, {"code": "already_running", "message": "Training is already running"})
+        self._require_gpu_free()
         voice = require_voice()
         settings = load_settings(voice)
         if not has_consent(voice):
@@ -313,6 +314,7 @@ class JobManager:
         """Continues the current job from its last checkpoint, optionally with more epochs."""
         if self.is_running():
             raise HTTPException(409, {"code": "already_running", "message": "Training is already running"})
+        self._require_gpu_free()
         job_id = self.state.get("job_id")
         if not job_id or not self.state.get("resumable"):
             raise HTTPException(409, {"code": "nothing_to_resume", "message": "No training run with a checkpoint to continue"})
@@ -344,6 +346,13 @@ class JobManager:
             started_at=now(),
         )
         threading.Thread(target=self._run, args=(job, resume), daemon=True).start()
+
+    @staticmethod
+    def _require_gpu_free() -> None:
+        from .importer import transcriber
+
+        if transcriber.is_running():
+            raise HTTPException(409, {"code": "import_running", "message": "A recording is being transcribed; start training afterwards"})
 
     def cancel(self) -> dict[str, Any]:
         if not self.is_running():

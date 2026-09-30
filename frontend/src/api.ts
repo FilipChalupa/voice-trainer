@@ -54,8 +54,24 @@ export type Recording = {
   duration: number;
   url: string;
   peaks: number[];
+  source: "import" | "transcribed" | null;
   quality: { peak?: number; rms_db?: number; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
 };
+
+export type TranscribeState = {
+  status: "idle" | "uploading" | "downloading" | "loading" | "transcribing" | "cutting" | "storing" | "done" | "failed" | "cancelled";
+  voice_id: string | null;
+  file: string | null;
+  progress: { current: number; total: number } | null;
+  device: string | null;
+  model: string;
+  model_installed: boolean;
+  result: { stored: number; skipped: number; count: number; minutes: number } | null;
+  error: string | null;
+  log: string[];
+};
+
+export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
 
 export type Prompt = { id: string; text: string };
 export type Prompts = {
@@ -220,6 +236,18 @@ export const api = {
   addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),
   skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
   dataset: () => request<DatasetReport>("/api/dataset"),
+  transcribe: () => request<TranscribeState>("/api/transcribe"),
+  startTranscribe: (audio: File) => {
+    const form = new FormData();
+    form.append("file", audio, audio.name);
+    return request<TranscribeState>("/api/transcribe", { method: "POST", body: form });
+  },
+  cancelTranscribe: () => request<TranscribeState>("/api/transcribe/cancel", { method: "POST" }),
+  importDataset: (zip: File) => {
+    const form = new FormData();
+    form.append("file", zip, zip.name);
+    return request<ImportResult>("/api/dataset/import", { method: "POST", body: form });
+  },
   base: () => request<{ items: BaseItem[] }>("/api/base"),
   downloadBase: (language: string) => request<unknown>(`/api/base/${language}/download`, { method: "POST" }),
   startTraining: () => request<TrainingState>("/api/train", { method: "POST" }),
