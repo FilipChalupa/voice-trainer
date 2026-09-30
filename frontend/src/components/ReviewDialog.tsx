@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, Stack, TextField, Tooltip, Typography, useTheme } from "@mui/material";
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, Stack, TextField, Tooltip, Typography } from "@mui/material";
 import CheckIcon from "@mui/icons-material/Check";
 import ReplayIcon from "@mui/icons-material/Replay";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -7,7 +7,8 @@ import MicIcon from "@mui/icons-material/Mic";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
 import { type Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
-import { Waveform } from "./RecordingList";
+import { AudioPlayer } from "./AudioPlayer";
+import { stopAll } from "../lib/audio";
 
 type Props = {
   open: boolean;
@@ -22,12 +23,11 @@ type Props = {
  *  Each take plays by itself; Enter confirms the text, the other actions have Ctrl shortcuts. */
 export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo }: Props) {
   const { t } = useI18n();
-  const theme = useTheme();
   const [index, setIndex] = useState(0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [total, setTotal] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [replay, setReplay] = useState(0);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
   const rec: Recording | undefined = queue[Math.min(index, queue.length - 1)];
@@ -40,21 +40,15 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const play = useCallback(() => {
-    if (!rec) return;
-    audioRef.current?.pause();
-    const audio = new Audio(rec.url);
-    audioRef.current = audio;
-    audio.play().catch(() => undefined);
-  }, [rec]);
+  // the player of the current item starts by itself (autoPlay); this restarts it from the beginning
+  const play = useCallback(() => setReplay((n) => n + 1), []);
 
   useEffect(() => {
     if (!open || !rec) return;
     setText(rec.text);
-    play();
     setTimeout(() => fieldRef.current?.focus(), 50);
-    return () => audioRef.current?.pause();
-  }, [open, rec, play]);
+    return () => stopAll();
+  }, [open, rec]);
 
   const run = async (action: () => Promise<void>) => {
     if (!rec || busy) return;
@@ -113,9 +107,7 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
                 </Tooltip>
               ))}
             </Stack>
-            <Box sx={{ cursor: "pointer" }} onClick={play}>
-              <Waveform peaks={rec.peaks} color={theme.palette.primary.main} height={48} />
-            </Box>
+            <AudioPlayer key={`${rec.id}-${replay}`} src={rec.url} peaks={rec.peaks} autoPlay />
             <TextField inputRef={fieldRef} label={t("review.text")} value={text} onChange={(e) => setText(e.target.value)} multiline minRows={2} fullWidth helperText={t("review.textHint")} />
             <Typography variant="caption" color="text.secondary">
               {t("review.keys")}

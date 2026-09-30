@@ -5,11 +5,11 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import MicIcon from "@mui/icons-material/Mic";
 import StopIcon from "@mui/icons-material/Stop";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import SaveIcon from "@mui/icons-material/Save";
 import { api, type VoicesPayload } from "../api";
 import { errorText, useI18n } from "../i18n";
+import { AudioPlayer } from "./AudioPlayer";
 import { Recorder } from "../lib/recorder";
 
 type Props = { payload: VoicesPayload; disabled: boolean; onChange: (p: VoicesPayload) => void; onError: (m: string) => void };
@@ -179,15 +179,17 @@ export function VoiceCard({ payload, disabled, onChange, onError }: Props) {
                 </Button>
                 {voice.has_consent && (
                   <>
-                    <Button startIcon={<PlayArrowIcon />} onClick={() => new Audio(`/api/consent/audio?ts=${Date.now()}`).play().catch(() => undefined)}>
-                      {t("consent.play")}
-                    </Button>
                     <Button color="error" onClick={() => run(() => api.deleteConsent())} disabled={disabled || busy}>
                       {t("consent.delete")}
                     </Button>
                   </>
                 )}
               </Stack>
+              {voice.has_consent && voice.consent && (
+                <Box sx={{ mt: 1.5 }}>
+                  <AudioPlayer src={`/api/consent/audio?ts=${voice.consent.at}`} dense label={t("consent.play")} />
+                </Box>
+              )}
               <Typography variant="body2" sx={{ mt: 1 }} color={voice.has_consent ? "success.main" : "warning.main"}>
                 {voice.has_consent && voice.consent
                   ? t("consent.recorded", { owner: voice.consent.owner, date: new Date(voice.consent.at).toLocaleString() })

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Stack, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import { api, type CheckState, type Job } from "../api";
 import { errorText, useI18n } from "../i18n";
+import { playSequence } from "../lib/audio";
 
 type Props = { job: Job | null; onClose: () => void; onError: (message: string) => void };
 
@@ -11,7 +12,6 @@ type Props = { job: Job | null; onClose: () => void; onError: (message: string) 
 export function CheckDialog({ job, onClose, onError }: Props) {
   const { t } = useI18n();
   const [state, setState] = useState<CheckState | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const running = state?.status === "running";
 
   useEffect(() => {
@@ -35,12 +35,7 @@ export function CheckDialog({ job, onClose, onError }: Props) {
     }
   };
 
-  const play = (url: string) => {
-    audioRef.current?.pause();
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.play().catch(() => undefined);
-  };
+  const play = (url: string) => playSequence([url]);
 
   const result = state?.result ?? null;
   const pct = state?.progress && state.progress.total > 0 ? (state.progress.current / state.progress.total) * 100 : 0;

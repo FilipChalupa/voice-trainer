@@ -12,6 +12,7 @@ import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
 import { api, type Prompt, type Prompts, type Recording, type VoiceSettings } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder, waveformPeaks } from "../lib/recorder";
+import { onExclusiveChange, playExclusive } from "../lib/audio";
 import { RecordingList, Waveform } from "./RecordingList";
 import { ReviewDialog } from "./ReviewDialog";
 import { MicCheckDialog } from "./MicCheckDialog";
@@ -104,6 +105,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     setPlaying(null);
   }, []);
 
+  // another player on the page took over: show the list as stopped
+  useEffect(() => onExclusiveChange((other) => other !== audioRef.current && audioRef.current && stopPlayback()), [stopPlayback]);
+
   const playOne = useCallback(
     (rec: Recording) =>
       new Promise<void>((resolve) => {
@@ -120,7 +124,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           setPlaying(null);
           resolve();
         };
-        audio.play().catch(() => resolve());
+        playExclusive(audio).then(() => undefined, () => resolve());
       }),
     [stopPlayback],
   );

@@ -3,9 +3,10 @@ import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, IconButton, Me
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import DownloadIcon from "@mui/icons-material/Download";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { api, type Job } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
+import { playSequence } from "../lib/audio";
+import { AudioPlayer } from "./AudioPlayer";
 
 type Props = { jobs: Job[]; baseVoiceName: string | null; onError: (message: string) => void };
 type Target = { jobId: string; file: string; label: string; voiceId?: string };
@@ -32,7 +33,6 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [compare, setCompare] = useState(""); // "<job_id>|<file>" of a second voice to hear right after the first
   const counter = useRef(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const job = runs.find((j) => j.job_id === jobId) ?? runs[0];
 
@@ -48,16 +48,6 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
     const preferred = job?.stopped_early ? "best_mel" : "last";
     if (job && !job.exports.some((e) => e.file === file)) setFile((job.exports.find((e) => e.variant === preferred) ?? job.exports[0]).file);
   }, [job, file]);
-
-  const play = (urls: string[]) => {
-    audioRef.current?.pause();
-    const [first, ...rest] = urls;
-    if (!first) return;
-    const audio = new Audio(first);
-    audioRef.current = audio;
-    audio.onended = () => play(rest); // the samples of a comparison follow each other
-    audio.play().catch(() => undefined);
-  };
 
   const variantLabel = (variant: string) => (VARIANTS.has(variant) ? t(`test.variant.${variant}` as TKey) : variant);
   const runLabel = (r: Job) => new Date(r.created_at).toLocaleString();
@@ -88,7 +78,7 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
         urls.push(url);
       }
       setSamples((prev) => [...made.slice().reverse(), ...prev].slice(0, 12));
-      play(urls);
+      playSequence(urls);
     } catch (e) {
       onError(errorText(t, e));
     } finally {
@@ -175,15 +165,7 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
                 </Typography>
                 <Stack spacing={0.5}>
                   {samples.map((s) => (
-                    <Stack key={s.id} direction="row" spacing={1} alignItems="center">
-                      <IconButton size="small" onClick={() => play([s.url])}>
-                        <PlayArrowIcon />
-                      </IconButton>
-                      <Chip size="small" variant="outlined" label={s.label} />
-                      <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                        {s.text}
-                      </Typography>
-                    </Stack>
+                    <AudioPlayer key={s.id} src={s.url} dense label={s.text} secondary={<Chip size="small" variant="outlined" label={s.label} sx={{ flexShrink: 0 }} />} />
                   ))}
                 </Stack>
               </Box>

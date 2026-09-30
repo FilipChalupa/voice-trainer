@@ -11,6 +11,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import { api, type BaseItem, type Calibration, type DatasetReport, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
+import { AudioPlayer } from "./AudioPlayer";
 
 const TrainingCharts = lazy(() => import("./TrainingCharts").then((m) => ({ default: m.TrainingCharts })));
 
@@ -242,10 +243,7 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
               {preview ? (
                 <Stack spacing={1}>
                   {preview.items.map((item) => (
-                    <Box key={item.url}>
-                      <Typography variant="body2">{item.text}</Typography>
-                      <audio controls preload="none" src={item.url} style={{ width: "100%", height: 36 }} />
-                    </Box>
+                    <AudioPlayer key={item.url} src={item.url} label={item.text} dense />
                   ))}
                 </Stack>
               ) : (
