@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +14,7 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from .config import BASE_DIR, LANGUAGES, Voice, load_settings
+from .events import parse_event, progress_percent, pump
 from .recordings import list_recordings, store_recording, total_minutes
 from .voices import require_voice
 
@@ -25,7 +25,6 @@ WHISPER_DIR = BASE_DIR / "whisper"
 WHISPER_MODEL = os.environ.get("VT_WHISPER_MODEL", "turbo")
 WHISPER_LANGUAGE = {"cs": "cs", "en": "en"}
 MAX_UPLOAD = 2 << 30  # 2 GB
-PROGRESS_BAR = re.compile(r"^\s*(\d{1,3})%\|")
 RUNNING = ("uploading", "downloading", "loading", "transcribing", "cutting", "storing")
 
 
@@ -89,7 +88,7 @@ class Transcriber:
             env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONPATH": str(BACKEND_ROOT), "NUMBA_CACHE_DIR": os.environ.get("NUMBA_CACHE_DIR", "/tmp/numba_cache")}
             WHISPER_DIR.mkdir(parents=True, exist_ok=True)
             self._proc = subprocess.Popen(cmd, cwd=str(work), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
-            self._pump(self._proc)
+            pump(self._proc, self._handle_line)
             code = self._proc.wait()
             if self._cancel.is_set():
                 self._update(status="cancelled")
@@ -118,38 +117,17 @@ class Transcriber:
             self._proc = None
             shutil.rmtree(work, ignore_errors=True)
 
-    def _pump(self, proc: subprocess.Popen) -> None:
-        assert proc.stdout is not None
-        buf = b""
-        while True:
-            chunk = proc.stdout.read(4096)
-            if not chunk:
-                break
-            buf += chunk
-            while True:
-                idx = min((i for i in (buf.find(b"\n"), buf.find(b"\r")) if i >= 0), default=-1)
-                if idx < 0:
-                    break
-                self._handle_line(buf[:idx].decode("utf-8", errors="replace"))
-                buf = buf[idx + 1 :]
-        if buf.strip():
-            self._handle_line(buf.decode("utf-8", errors="replace"))
-
     def _handle_line(self, line: str) -> None:
         line = line.rstrip()
         if not line:
             return
-        bar = PROGRESS_BAR.match(line)
-        if bar:
+        percent = progress_percent(line)
+        if percent is not None:
             # tqdm of the model download and of the transcription itself
-            self._update(progress={"current": int(bar.group(1)), "total": 100})
+            self._update(progress={"current": percent, "total": 100})
             return
-        if not line.startswith("@@"):
-            self._log(line)
-            return
-        try:
-            ev = json.loads(line[2:])
-        except json.JSONDecodeError:
+        ev = parse_event(line)
+        if ev is None:
             self._log(line)
             return
         kind = ev.get("event")

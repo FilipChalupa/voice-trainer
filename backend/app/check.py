@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from .config import Voice, apply_lexicon, load_settings, now
-from .jobs import SAFE, _read_json, find_job_dir, list_exports
+from .runs import SAFE, find_job_dir, list_exports, read_json
 from .recordings import list_recordings
 
 router = APIRouter(prefix="/api", tags=["check"])
@@ -51,7 +51,7 @@ class Checker:
             state = dict(self.state)
         if job_id:
             job_dir = find_job_dir(job_id)
-            state["result"] = _read_json(job_dir / "check" / "result.json") or None
+            state["result"] = read_json(job_dir / "check" / "result.json") or None
             if state["job_id"] != job_id:
                 state = {**state, "status": "idle" if state["result"] is None else "done", "progress": None, "error": None}
         return state
@@ -60,11 +60,11 @@ class Checker:
         if self.is_running():
             raise HTTPException(409, {"code": "check_running", "message": "A check is already running"})
         job_dir = find_job_dir(job_id)
-        job = _read_json(job_dir / "job.json")
+        job = read_json(job_dir / "job.json")
         exports = list_exports(job_dir, job_id)
         if not exports:
             raise HTTPException(409, {"code": "no_models", "message": "This run has no exported voice yet"})
-        result = _read_json(job_dir / "result.json")
+        result = read_json(job_dir / "result.json")
         preferred = "best_mel" if result.get("stopped_early") else "last"
         export = next((e for e in exports if e["variant"] == preferred), exports[0])
         with self._lock:
@@ -73,7 +73,6 @@ class Checker:
         return self.snapshot(job_id)
 
     def _run(self, job_dir: Path, job: dict[str, Any], export: dict[str, Any]) -> None:
-        import numpy as np
         import soundfile as sf
 
         from .synth import load_voice, synthesize

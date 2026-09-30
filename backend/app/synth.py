@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .base import ensure_base_voice
 from .config import LANGUAGES, Voice, apply_lexicon, load_settings
-from .jobs import SAFE, _read_json, find_job_dir, list_exports
+from .runs import SAFE, find_job_dir, list_exports, read_json
 
 router = APIRouter(prefix="/api", tags=["synthesis"])
 _voices: "OrderedDict[str, Any]" = OrderedDict()
@@ -79,7 +79,7 @@ async def post_synthesize(body: dict[str, Any]):
         path = job_dir / "export" / name
         if not path.exists():
             raise HTTPException(404, {"code": "not_found", "message": "Model not found"})
-        lexicon = load_settings(Voice(_read_json(job_dir / "job.json").get("voice_id") or "")).get("lexicon") or {}
+        lexicon = load_settings(Voice(read_json(job_dir / "job.json").get("voice_id") or "")).get("lexicon") or {}
     text = apply_lexicon(text, lexicon)
 
     def clamp(value: Any, default: float, low: float, high: float) -> float:
@@ -135,7 +135,7 @@ files consistently if you prefer one of them.
 @router.get("/jobs/{job_id}/bundle")
 def get_bundle(job_id: str):
     job_dir = find_job_dir(job_id)
-    job = _read_json(job_dir / "job.json")
+    job = read_json(job_dir / "job.json")
     exports = list_exports(job_dir, job_id)
     if not exports:
         raise HTTPException(404, {"code": "no_models", "message": "This run has no exported voice yet"})

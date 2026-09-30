@@ -1,10 +1,10 @@
-"""Training job manager: fine-tunes a Piper voice in a subprocess, parses its progress, streams it via SSE."""
+"""Live training: fine-tunes a Piper voice in a subprocess, parses its progress, streams it via SSE.
+Stored runs (summaries, exports, previews) live in runs.py."""
 from __future__ import annotations
 
 import asyncio
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -19,121 +19,18 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
 from . import base
-from .config import KEEP_JOBS, LANGUAGES, MIN_MINUTES, SAMPLE_RATE, VOICES_DIR, Voice, apply_lexicon, current_voice, list_voices, load_settings, now, slugify
+from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, apply_lexicon, current_voice, load_settings, now, slugify
+from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
+from .runs import FINISHED, SAFE, calibration, find_job_dir, list_exports, list_jobs, list_previews, prune_jobs, read_json
 from .voices import has_consent, require_voice
-
-PROGRESS_BAR = re.compile(r"^\s*\d{1,3}%\|")
 
 router = APIRouter(prefix="/api", tags=["training"])
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOG_LINES = 600
 RUNNING = ("downloading", "preparing", "training", "exporting")
-FINISHED = ("done", "failed", "cancelled")
 STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clean stop
-SAFE = re.compile(r"^[A-Za-z0-9_.\-=]+$")
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def find_job_dir(job_id: str) -> Path:
-    if not re.match(r"^[A-Za-z0-9_\-]+$", job_id or ""):
-        raise HTTPException(400, {"code": "bad_id", "message": "Bad job id"})
-    for entry in list_voices():
-        candidate = VOICES_DIR / entry["id"] / "jobs" / job_id
-        if candidate.is_dir():
-            return candidate
-    raise HTTPException(404, {"code": "not_found", "message": "Job not found"})
-
-
-def list_previews(job_dir: Path, job_id: str) -> list[dict[str, Any]]:
-    out = []
-    preview_root = job_dir / "previews"
-    if not preview_root.is_dir():
-        return out
-    for d in sorted(preview_root.iterdir()):
-        if not d.is_dir() or not d.name.startswith("epoch_"):
-            continue
-        sentences = _read_json(d / "sentences.json") if (d / "sentences.json").exists() else []
-        files = sorted(d.glob("*.wav"), key=lambda p: int(p.stem) if p.stem.isdigit() else 0)
-        out.append({
-            "epoch": int(d.name.split("_")[1]),
-            "items": [{"url": f"/api/jobs/{job_id}/previews/{d.name}/{f.name}", "text": sentences[int(f.stem)] if isinstance(sentences, list) and f.stem.isdigit() and int(f.stem) < len(sentences) else ""} for f in files],
-        })
-    return out
-
-
-def list_exports(job_dir: Path, job_id: str) -> list[dict[str, Any]]:
-    exports = _read_json(job_dir / "export" / "exports.json") if (job_dir / "export" / "exports.json").exists() else []
-    out = []
-    for e in exports if isinstance(exports, list) else []:
-        if (job_dir / "export" / e["file"]).exists():
-            out.append({**e, "url": f"/api/jobs/{job_id}/export/{e['file']}", "config_url": f"/api/jobs/{job_id}/export/{e['file']}.json"})
-    return out
-
-
-def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | None:
-    job = _read_json(job_dir / "job.json")
-    if not job:
-        return None
-    result = _read_json(job_dir / "result.json")
-    status = result.get("status")
-    if status is None:
-        status = "running" if running_job_id == job["job_id"] else "interrupted"
-    has_last = (job_dir / "checkpoints" / "last.ckpt").exists()
-    exports = list_exports(job_dir, job["job_id"])
-    return {
-        "job_id": job["job_id"],
-        "voice_id": job.get("voice_id"),
-        "name": job.get("name"),
-        "slug": job.get("slug"),
-        "language": job.get("language"),
-        "created_at": job.get("created_at"),
-        "finished_at": result.get("finished_at"),
-        "status": status,
-        "minutes": job.get("minutes"),
-        "recordings": job.get("recordings"),
-        "training": job.get("training"),
-        "max_epochs": job.get("max_epochs"),
-        "epoch": result.get("epoch"),
-        "validation_last": (result.get("validation") or [None])[-1],
-        "exports": exports,
-        "bundle_url": f"/api/jobs/{job['job_id']}/bundle" if exports else None,
-        "resumable": has_last and status in ("interrupted", "cancelled", "failed", "done"),
-        "stopped_early": bool(result.get("stopped_early")),
-        "previews": len(list_previews(job_dir, job["job_id"])),
-    }
-
-
-def list_jobs(voice: Voice, running_job_id: str | None = None) -> list[dict[str, Any]]:
-    voice.ensure()
-    running = running_job_id
-    if running is None:
-        mgr = globals().get("manager")
-        if mgr is not None and mgr.is_running():
-            running = mgr.state.get("job_id")
-    jobs = []
-    for job_dir in sorted(voice.jobs_dir.iterdir(), reverse=True):
-        if job_dir.is_dir():
-            summary = job_summary(job_dir, running)
-            if summary:
-                jobs.append(summary)
-    return jobs
-
-
-def prune_jobs(voice: Voice, keep: int = KEEP_JOBS) -> int:
-    finished = [j for j in list_jobs(voice) if j["status"] in FINISHED]
-    removed = 0
-    for job in finished[keep:]:
-        shutil.rmtree(voice.jobs_dir / job["job_id"], ignore_errors=True)
-        removed += 1
-    return removed
 
 
 class JobManager:
@@ -191,7 +88,7 @@ class JobManager:
         if jobs:
             job = jobs[0]
             job_dir = voice.jobs_dir / job["job_id"]
-            result = _read_json(job_dir / "result.json")
+            result = read_json(job_dir / "result.json")
             total = int(job.get("max_epochs") or 0)
             epoch = int(result.get("epoch") or 0)
             with self._lock:
@@ -321,9 +218,9 @@ class JobManager:
         if not job_id or not self.state.get("resumable"):
             raise HTTPException(409, {"code": "nothing_to_resume", "message": "No training run with a checkpoint to continue"})
         job_dir = find_job_dir(job_id)
-        job = _read_json(job_dir / "job.json")
+        job = read_json(job_dir / "job.json")
         if extra_epochs > 0:
-            done = int(_read_json(job_dir / "result.json").get("epoch") or job["max_epochs"])
+            done = int(read_json(job_dir / "result.json").get("epoch") or job["max_epochs"])
             job["max_epochs"] = max(int(job["max_epochs"]), done) + int(extra_epochs)
             (job_dir / "job.json").write_text(json.dumps(job, indent=2, ensure_ascii=False))
         (job_dir / "result.json").unlink(missing_ok=True)
@@ -439,7 +336,7 @@ class JobManager:
         (job_dir / STOP_FILE).unlink(missing_ok=True)
         self._log(f"$ {' '.join(cmd)}")
         self._proc = subprocess.Popen(cmd, cwd=str(job_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
-        self._pump(self._proc)
+        pump(self._proc, self._handle_line)
         return self._proc.wait()
 
     def _run(self, job: dict[str, Any], resume: bool) -> None:
@@ -487,14 +384,14 @@ class JobManager:
         if self.is_running():
             raise HTTPException(409, {"code": "already_running", "message": "Training is already running"})
         job_dir = find_job_dir(job_id)
-        job = _read_json(job_dir / "job.json")
+        job = read_json(job_dir / "job.json")
         if not list((job_dir / "checkpoints").glob("*.ckpt")):
             raise HTTPException(409, {"code": "no_checkpoint", "message": "This run has no checkpoint yet"})
         self._cancel.clear()
         self._update(status="exporting", job_id=job_id, stage_key="exporting", error=None)
 
         def run() -> None:
-            result = _read_json(job_dir / "result.json")
+            result = read_json(job_dir / "result.json")
             previous = result.get("status") if result.get("status") in FINISHED else "cancelled"
             try:
                 self._export(job, keep_checkpoints=True)
@@ -513,40 +410,15 @@ class JobManager:
         threading.Thread(target=run, daemon=True).start()
         return self.snapshot()
 
-    def _pump(self, proc: subprocess.Popen) -> None:
-        assert proc.stdout is not None
-        buf = b""
-        while True:
-            chunk = proc.stdout.read(4096)
-            if not chunk:
-                break
-            buf += chunk
-            while True:
-                idx_n = buf.find(b"\n")
-                idx_r = buf.find(b"\r")
-                candidates = [i for i in (idx_n, idx_r) if i >= 0]
-                if not candidates:
-                    break
-                idx = min(candidates)
-                line = buf[:idx].decode("utf-8", errors="replace")
-                buf = buf[idx + 1:]
-                self._handle_line(line)
-        if buf.strip():
-            self._handle_line(buf.decode("utf-8", errors="replace"))
-
     def _handle_line(self, line: str) -> None:
         line = line.rstrip()
         if not line:
             return
-        if not line.startswith("@@"):
+        ev = parse_event(line)
+        if ev is None:
             # progress bars of downloads (tqdm) redraw many times per second and would flood the log
             if not PROGRESS_BAR.match(line):
                 self._log(line)
-            return
-        try:
-            ev = json.loads(line[2:])
-        except json.JSONDecodeError:
-            self._log(line)
             return
         kind = ev.get("event")
         if kind == "train_start":
@@ -613,30 +485,6 @@ manager = JobManager()
 def start_training():
     return manager.start()
 
-
-DEFAULT_GPU_RATE = 0.2  # seconds per epoch per minute of audio, measured on an RTX 3080 with batch size 16
-
-
-def calibration() -> dict[str, Any]:
-    """How long an epoch takes per minute of audio on this machine, from the most recent finished run."""
-    newest: dict[str, Any] | None = None
-    for v in list_voices():
-        voice = Voice(v["id"])
-        if not voice.jobs_dir.exists():
-            continue
-        for job_dir in voice.jobs_dir.iterdir():
-            job = _read_json(job_dir / "job.json")
-            result = _read_json(job_dir / "result.json")
-            minutes = float(job.get("minutes") or 0)
-            if result.get("epoch_seconds") and minutes > 0 and (newest is None or (result.get("finished_at") or "") > newest["finished_at"]):
-                newest = {"finished_at": result.get("finished_at") or "", "rate": result["epoch_seconds"] / minutes, "device": result.get("device")}
-    if newest:
-        return {"rate": round(newest["rate"], 4), "basis": "history", "device": newest["device"]}
-    from .system import nvidia_smi, torch_cuda
-
-    if nvidia_smi() is not None and torch_cuda():
-        return {"rate": DEFAULT_GPU_RATE, "basis": "default", "device": "cuda"}
-    return {"rate": None, "basis": "none", "device": "cpu"}
 
 
 @router.get("/train/calibration")

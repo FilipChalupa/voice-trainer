@@ -164,7 +164,7 @@ def test_dataset_report_and_training_params():
 
 
 def test_job_summary_previews_and_exports(tmp_path):
-    from app.jobs import job_summary, list_exports, list_previews
+    from app.runs import job_summary, list_exports, list_previews
 
     job_dir = tmp_path / "20260101_000000_abc"
     (job_dir / "previews" / "epoch_00050").mkdir(parents=True)
