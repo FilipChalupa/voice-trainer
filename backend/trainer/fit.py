@@ -64,7 +64,8 @@ class ProgressCallback(Callback):
         m = trainer.callback_metrics
         emit("epoch", epoch=int(trainer.current_epoch) + 1, max_epochs=int(trainer.max_epochs), loss_g=_scalar(m.get("loss_g")), loss_d=_scalar(m.get("loss_d")))
 
-    def on_validation_epoch_end(self, trainer, pl_module) -> None:
+    def on_validation_end(self, trainer, pl_module) -> None:
+        # not on_validation_epoch_end: the model logs val_mos in its own epoch-end hook, which runs after the callbacks' one
         if trainer.sanity_checking:
             return
         m = trainer.callback_metrics
@@ -114,6 +115,19 @@ class ProgressCallback(Callback):
         emit("preview", epoch=epoch, files=files)
 
 
+class OptionalMetricCheckpoint(ModelCheckpoint):
+    """ModelCheckpoint that stays idle while its monitored metric is not being logged.
+
+    "val_mos" only exists when the UTMOS predictor could be loaded (it needs a download on first use);
+    a plain ModelCheckpoint raises when the key is missing, which would abort the whole run.
+    """
+
+    def on_validation_end(self, trainer, pl_module) -> None:
+        if self.monitor and self.monitor not in trainer.callback_metrics:
+            return
+        super().on_validation_end(trainer, pl_module)
+
+
 class VitsLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.link_arguments("data.batch_size", "model.batch_size")
@@ -136,7 +150,7 @@ def main() -> None:
         # best reconstruction + always the latest (needed to resume / continue)
         ModelCheckpoint(dirpath=ckpt_dir, monitor="val_mel", mode="min", save_top_k=1, save_last=True, filename="best_mel-epoch={epoch}", auto_insert_metric_name=False),
         # best perceived quality (UTMOS); silently inactive when the predictor cannot be loaded
-        ModelCheckpoint(dirpath=ckpt_dir, monitor="val_mos", mode="max", save_top_k=1, save_last=False, filename="best_mos-epoch={epoch}", auto_insert_metric_name=False),
+        OptionalMetricCheckpoint(dirpath=ckpt_dir, monitor="val_mos", mode="max", save_top_k=1, save_last=False, filename="best_mos-epoch={epoch}", auto_insert_metric_name=False),
         ProgressCallback(),
     ]
     VitsLightningCLI(VitsModel, VitsDataModule, trainer_defaults={"max_epochs": -1, "callbacks": callbacks})

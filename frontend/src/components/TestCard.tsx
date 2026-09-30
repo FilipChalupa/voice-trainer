@@ -11,6 +11,10 @@ type Props = { jobs: Job[]; onError: (message: string) => void };
 type Sample = { id: number; url: string; text: string; label: string };
 
 const VARIANTS = new Set(["last", "best_mos", "best_mel"]);
+const DEFAULT_TEXT: Record<string, string> = {
+  cs: "Dobrý den, tohle je můj nový hlas. Jak se vám líbí?",
+  en: "Hello, this is my new voice. How do you like it?",
+};
 
 /** Text-to-speech playground for the exported voices of a run, plus downloads and Home Assistant instructions. */
 export function TestCard({ jobs, onError }: Props) {
@@ -18,7 +22,8 @@ export function TestCard({ jobs, onError }: Props) {
   const runs = useMemo(() => jobs.filter((j) => j.exports.length > 0), [jobs]);
   const [jobId, setJobId] = useState("");
   const [file, setFile] = useState("");
-  const [text, setText] = useState(() => t("test.defaultText"));
+  const [text, setText] = useState("");
+  const [edited, setEdited] = useState(false);
   const [speed, setSpeed] = useState(1.0);
   const [noise, setNoise] = useState(0.667);
   const [noiseW, setNoiseW] = useState(0.8);
@@ -32,6 +37,10 @@ export function TestCard({ jobs, onError }: Props) {
   useEffect(() => {
     if (job && job.job_id !== jobId) setJobId(job.job_id);
   }, [job, jobId]);
+  // the sample text follows the language of the voice, not the language of the interface
+  useEffect(() => {
+    if (job && !edited) setText(DEFAULT_TEXT[job.language] ?? DEFAULT_TEXT.en);
+  }, [job, edited]);
   useEffect(() => {
     if (job && !job.exports.some((e) => e.file === file)) setFile((job.exports.find((e) => e.variant === "last") ?? job.exports[0]).file);
   }, [job, file]);
@@ -87,7 +96,10 @@ export function TestCard({ jobs, onError }: Props) {
               </TextField>
             </Stack>
 
-            <TextField label={t("test.text")} value={text} onChange={(e) => setText(e.target.value)} multiline minRows={2} fullWidth />
+            <TextField label={t("test.text")} value={text} onChange={(e) => {
+                setEdited(true);
+                setText(e.target.value);
+              }} multiline minRows={2} fullWidth />
 
             <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
               <Box>
@@ -148,7 +160,7 @@ export function TestCard({ jobs, onError }: Props) {
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 {job.exports.map((e) => (
-                  <Button key={e.file} size="small" href={e.url} download startIcon={<DownloadIcon />}>
+                  <Button key={e.file} size="small" href={e.url} download startIcon={<DownloadIcon />} sx={{ textTransform: "none" }}>
                     {e.file} ({(e.size / (1 << 20)).toFixed(0)} MB)
                   </Button>
                 ))}

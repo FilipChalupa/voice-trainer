@@ -134,7 +134,7 @@ function Main() {
           {tab === "train" && voice && payload && (
             <>
               <TrainingCard state={state} log={log} voice={voice} defaults={payload.defaults} system={system} datasetVersion={datasetVersion} onVoices={onVoices} onError={showError} onFinished={loadJobs} />
-              <JobsCard jobs={jobs} disabled={running} onChanged={loadJobs} onError={showError} />
+              <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} />
             </>
           )}
           {tab === "test" && voice && <TestCard jobs={jobs} onError={showError} />}

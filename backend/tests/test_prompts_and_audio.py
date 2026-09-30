@@ -42,6 +42,12 @@ def test_analyze_flags_text_mismatch_and_clipping(tmp_path):
     wav, _ = normalize_wav(wav_bytes(seconds=1.0, amplitude=1.5, lead=0.3, tail=0.3))
     loud.write_bytes(wav)
     assert "clipping" in analyze(loud)["quality"]["issues"]
+    # a recording normalised to full scale touches the limit with a sample or two and is fine
+    data, sr = sf.read(str(path), dtype="float32")
+    data[len(data) // 2] = 1.0
+    peaked = tmp_path / "c.wav"
+    sf.write(str(peaked), data, sr, subtype="PCM_16")
+    assert "clipping" not in analyze(peaked)["quality"]["issues"]
 
 
 def test_filter_sentences_keeps_natural_czech():

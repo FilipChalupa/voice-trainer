@@ -23,6 +23,8 @@ from .config import KEEP_JOBS, LANGUAGES, MIN_MINUTES, SAMPLE_RATE, VOICES_DIR, 
 from .recordings import list_recordings, total_minutes
 from .voices import has_consent, require_voice
 
+PROGRESS_BAR = re.compile(r"^\s*\d{1,3}%\|")
+
 router = APIRouter(prefix="/api", tags=["training"])
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -436,6 +438,10 @@ class JobManager:
             self._write_result(job_dir, "failed", error=str(exc))
         finally:
             self._proc = None
+            if self.state.get("status") != "done":
+                # voices exported by an earlier finished stretch of this run are still usable
+                exports = list_exports(job_dir, job["job_id"])
+                self._update(exports=exports, bundle_url=f"/api/jobs/{job['job_id']}/bundle" if exports else None)
 
     def _export(self, job: dict[str, Any], keep_checkpoints: bool = False) -> None:
         job_dir = Path(job["job_dir"])
@@ -460,10 +466,16 @@ class JobManager:
         self._update(status="exporting", job_id=job_id, stage_key="exporting", error=None)
 
         def run() -> None:
-            previous = _read_json(job_dir / "result.json").get("status") or "cancelled"
+            result = _read_json(job_dir / "result.json")
+            previous = result.get("status") if result.get("status") in FINISHED else "cancelled"
             try:
                 self._export(job, keep_checkpoints=True)
-                self._update(status=previous if previous in FINISHED else "cancelled", stage_key=previous)
+                if previous == "failed" and int(result.get("epoch") or 0) >= int(job.get("max_epochs") or 0) > 0:
+                    # training itself had finished and only the export failed, so the run is complete now
+                    previous = "done"
+                    result.update(status="done", error=None)
+                    (job_dir / "result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
+                self._update(status=previous, stage_key=previous, error=None)
             except Exception as exc:  # noqa: BLE001
                 self._log(f"ERROR: {exc}")
                 self._update(status="failed", stage_key="failed", error=str(exc))
@@ -499,7 +511,9 @@ class JobManager:
         if not line:
             return
         if not line.startswith("@@"):
-            self._log(line)
+            # progress bars of downloads (tqdm) redraw many times per second and would flood the log
+            if not PROGRESS_BAR.match(line):
+                self._log(line)
             return
         try:
             ev = json.loads(line[2:])
@@ -522,7 +536,8 @@ class JobManager:
         elif kind == "validation":
             entry = {"epoch": int(ev.get("epoch", 0)), "val_mel": ev.get("val_mel"), "val_mos": ev.get("val_mos"), "val_loss": ev.get("val_loss")}
             with self._lock:
-                self.state["validation"].append(entry)
+                # a resumed run validates its starting epoch once more; keep one entry per epoch
+                self.state["validation"] = [v for v in self.state["validation"] if v.get("epoch") != entry["epoch"]] + [entry]
                 self.state["resumable"] = True
             self._publish("state", {"validation": self.state["validation"], "resumable": True})
             self._log(f"Epoch {entry['epoch']}: val_mel {entry['val_mel']}, val_mos {entry['val_mos']}")

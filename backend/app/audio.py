@@ -119,7 +119,8 @@ def analyze(path, text: str | None = None) -> dict:
             issues.append("cut_start")
         if duration - bounds[1] / sr < 0.05:
             issues.append("cut_end")
-    if peak >= 0.985:
+    # one full-scale sample is just a normalised recording; real clipping flattens many samples
+    if n and float(np.mean(np.abs(audio) >= 0.985)) > 0.0005:
         issues.append("clipping")
     elif peak < 0.08 and "silent" not in issues:
         issues.append("too_quiet")

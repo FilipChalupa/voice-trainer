@@ -5,12 +5,12 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { api, type Job } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
-type Props = { jobs: Job[]; disabled: boolean; onChanged: () => void; onError: (message: string) => void };
+type Props = { jobs: Job[]; liveEpoch: number; disabled: boolean; onChanged: () => void; onError: (message: string) => void };
 
 const COLORS: Record<string, "success" | "error" | "warning" | "info" | "default"> = { done: "success", failed: "error", cancelled: "warning", running: "info", interrupted: "warning" };
 const STATUSES = new Set(["done", "failed", "cancelled", "running", "interrupted"]);
 
-export function JobsCard({ jobs, disabled, onChanged, onError }: Props) {
+export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Props) {
   const { t } = useI18n();
   const remove = async (id: string) => {
     try {
@@ -50,7 +50,7 @@ export function JobsCard({ jobs, disabled, onChanged, onError }: Props) {
                     </TableCell>
                     <TableCell>{t("jobs.dataValue", { minutes: job.minutes?.toFixed(1) ?? "–", recordings: job.recordings ?? "–" })}</TableCell>
                     <TableCell>
-                      {job.epoch ?? 0} / {job.max_epochs}
+                      {job.status === "running" ? liveEpoch : (job.epoch ?? 0)} / {job.max_epochs}
                     </TableCell>
                     <TableCell>{job.validation_last?.val_mos != null ? job.validation_last.val_mos.toFixed(2) : "–"}</TableCell>
                     <TableCell>

@@ -31,6 +31,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && python3 setup.py build_ext --inplace \
     && python3 -c "import piper, piper.train.vits.lightning, piper.train.vits.monotonic_align; print('piper ok')"
 
+# torchaudio is needed by the optional UTMOS quality predictor used during validation (val_mos).
+# It lags behind torch releases, so it is pinned and installed without touching torch itself.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-deps torchaudio==2.11.0 \
+    && python3 -c "import torch, torchaudio; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__)"
+
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
@@ -41,7 +47,10 @@ COPY --from=frontend /app/dist ./static
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && chown -R app:app /app
 
-ENV HOME=/home/app
+# numba (pulled in by librosa) caches compiled functions; site-packages is read-only for the app user
+ENV HOME=/home/app \
+    NUMBA_CACHE_DIR=/tmp/numba_cache \
+    MPLCONFIGDIR=/tmp/matplotlib
 VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health')" || exit 1

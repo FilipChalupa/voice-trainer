@@ -6,6 +6,11 @@ or on the command line.
 
 Sister project of [wakeword-trainer](https://github.com/FilipChalupa/wakeword-trainer).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
+  <img alt="Voice Trainer recording studio" src="docs/screenshots/hero-light.png">
+</picture>
+
 ## Consent first
 
 A voice model can imitate a real person. Every voice here has a named owner, and training refuses to start until
@@ -27,6 +32,12 @@ Only train voices of people who agreed to it.
    stopped, continued after a restart, or extended with more epochs.
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
+
+| Recording studio | Training |
+| --- | --- |
+| ![Recording studio](docs/screenshots/studio.png) | ![Training with live charts and previews](docs/screenshots/training.png) |
+| **Voice and consent** | **Test & export** |
+| ![Voice and consent](docs/screenshots/voice.png) | ![Test and export](docs/screenshots/test.png) |
 
 Sentences come from the Common Voice sentence collection (CC0), filtered and ordered for phonetic variety. A short
 built-in set works offline.
@@ -78,6 +89,8 @@ services:
 - Default: 500 epochs, batch size 16. On an RTX 3080 with 30 minutes of audio an epoch takes a few seconds.
 - A checkpoint is ~850 MB. Each run keeps the latest one (to continue from); the best-by-quality checkpoints are
   exported to ONNX and then removed. `KEEP_JOBS` (default 5) limits how many finished runs are kept per voice.
+- The checkpoint to continue from is written at every validation, so stopping a run loses the epochs since the
+  last one.
 - The estimated MOS uses UTMOS, downloaded on first use. If it cannot be loaded, training still works and only the
   mel loss is shown.
 
@@ -86,10 +99,10 @@ services:
 ```
 backend/app        FastAPI: voices + consent, prompts, recordings, base checkpoints, jobs (manager + SSE),
                    synthesis/export, system info, static frontend
-backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py (ONNX export)
+backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py + onnx_export.py (ONNX export)
 backend/tests      pytest suite (no PyTorch needed: pip install -r backend/requirements-dev.txt)
 frontend           Vite + React + TypeScript + Material UI, Czech/English, light/dark by system setting
-tests/e2e          Playwright smoke test used in CI
+tests/e2e          Playwright smoke test used in CI, screenshots.js re-creates the README screenshots
 data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,consent.wav}
 ```
 

@@ -16,7 +16,7 @@ def emit(event: str, **data) -> None:
 def export_checkpoint(checkpoint: Path, output: Path, config: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(
-        [sys.executable, "-m", "piper.train.export_onnx", "--checkpoint", str(checkpoint), "--output-file", str(output)],
+        [sys.executable, "-m", "trainer.onnx_export", "--checkpoint", str(checkpoint), "--output-file", str(output)],
         capture_output=True,
         text=True,
     )
@@ -63,6 +63,12 @@ def main() -> int:
         exported.append({"variant": variant, "file": target.name, "checkpoint": ckpt.name, "size": target.stat().st_size})
         emit("log", message=f"Exported {ckpt.name} -> {target.name} ({target.stat().st_size // (1 << 20)} MB)")
     (export_dir / "exports.json").write_text(json.dumps(exported, indent=2))
+    # voices of checkpoints that no longer exist (an earlier export of a resumed run) would only confuse
+    keep = {e["file"] for e in exported}
+    for stale in export_dir.glob("*.onnx"):
+        if stale.name not in keep:
+            stale.unlink(missing_ok=True)
+            Path(str(stale) + ".json").unlink(missing_ok=True)
     if not args.keep_checkpoints:
         for ckpt in checkpoints:
             if not ckpt.stem.startswith("last"):
