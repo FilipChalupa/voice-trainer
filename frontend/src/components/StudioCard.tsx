@@ -7,11 +7,13 @@ import SkipNextIcon from "@mui/icons-material/SkipNext";
 import ReplayIcon from "@mui/icons-material/Replay";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
+import SettingsVoiceIcon from "@mui/icons-material/SettingsVoice";
 import { api, type Prompt, type Prompts, type Recording, type VoiceSettings } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder, waveformPeaks } from "../lib/recorder";
 import { RecordingList, Waveform } from "./RecordingList";
 import { ReviewDialog } from "./ReviewDialog";
+import { MicCheckDialog } from "./MicCheckDialog";
 
 type Props = {
   voice: VoiceSettings;
@@ -43,6 +45,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [undo, setUndo] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [micCheckOpen, setMicCheckOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [info, setInfo] = useState<string | null>(null);
 
@@ -362,6 +365,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
                 {t("studio.review", { n: reviewQueue.length })}
               </Button>
             )}
+            <Button startIcon={<SettingsVoiceIcon />} onClick={() => setMicCheckOpen(true)} disabled={disabled || busy}>
+              {t("studio.micCheck")}
+            </Button>
             <FormControlLabel control={<Switch checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} />} label={t("studio.autoplay")} />
             <TextField select size="small" label={t("studio.mic")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
               <MenuItem value="">{t("studio.micDefault")}</MenuItem>
@@ -386,6 +392,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
         </Stack>
       </CardContent>
 
+      <MicCheckDialog open={micCheckOpen} recorder={recorderRef.current} deviceId={deviceId} sentence={text || t("mic.fallbackSentence")} recordings={recordings} onClose={() => setMicCheckOpen(false)} onError={onError} />
       <ReviewDialog open={reviewOpen} queue={reviewQueue} onClose={() => setReviewOpen(false)} onApprove={reviewApprove} onDelete={remove} onRedo={reviewRedo} />
 
       <Dialog open={customOpen} onClose={() => setCustomOpen(false)} fullWidth maxWidth="sm">

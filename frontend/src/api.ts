@@ -57,7 +57,7 @@ export type Recording = {
   peaks: number[];
   reviewed: boolean;
   source: "import" | "transcribed" | null;
-  quality: { peak?: number; rms_db?: number; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
+  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
 };
 
 export type TranscribeState = {
