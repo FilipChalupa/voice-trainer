@@ -7,6 +7,7 @@ import { VoiceCard } from "./components/VoiceCard";
 import { StudioCard } from "./components/StudioCard";
 import { DatasetCard } from "./components/DatasetCard";
 import { TranscribeCard } from "./components/TranscribeCard";
+import { LexiconCard } from "./components/LexiconCard";
 import { TrainingCard } from "./components/TrainingCard";
 import { JobsCard } from "./components/JobsCard";
 import { TestCard } from "./components/TestCard";
@@ -150,7 +151,12 @@ function Main() {
               <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} />
             </>
           )}
-          {tab === "test" && voice && <TestCard jobs={jobs} onError={showError} />}
+          {tab === "test" && voice && payload && (
+            <>
+              <TestCard jobs={jobs} baseVoiceName={payload.languages.find((l) => l.id === voice.language)?.base.name ?? null} onError={showError} />
+              <LexiconCard voice={voice} onVoices={onVoices} onError={showError} />
+            </>
+          )}
           <Typography variant="caption" color="text.secondary" textAlign="center">
             {t("app.footer")}
           </Typography>

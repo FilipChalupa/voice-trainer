@@ -7,7 +7,8 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { api, type Job } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
-type Props = { jobs: Job[]; onError: (message: string) => void };
+type Props = { jobs: Job[]; baseVoiceName: string | null; onError: (message: string) => void };
+type Target = { jobId: string; file: string; label: string; voiceId?: string };
 type Sample = { id: number; url: string; text: string; label: string };
 
 const VARIANTS = new Set(["last", "best_mos", "best_mel"]);
@@ -17,7 +18,7 @@ const DEFAULT_TEXT: Record<string, string> = {
 };
 
 /** Text-to-speech playground for the exported voices of a run, plus downloads and Home Assistant instructions. */
-export function TestCard({ jobs, onError }: Props) {
+export function TestCard({ jobs, baseVoiceName, onError }: Props) {
   const { t } = useI18n();
   const runs = useMemo(() => jobs.filter((j) => j.exports.length > 0), [jobs]);
   const [jobId, setJobId] = useState("");
@@ -60,25 +61,30 @@ export function TestCard({ jobs, onError }: Props) {
 
   const variantLabel = (variant: string) => (VARIANTS.has(variant) ? t(`test.variant.${variant}` as TKey) : variant);
   const runLabel = (r: Job) => new Date(r.created_at).toLocaleString();
-  const compareOptions = runs.flatMap((r) => r.exports.map((e) => ({ value: `${r.job_id}|${e.file}`, label: `${runLabel(r)} · ${variantLabel(e.variant)}` }))).filter((o) => o.value !== `${job?.job_id}|${file}`);
+  const compareOptions = [
+    // the untouched base voice first: it shows what fine-tuning changed
+    ...(job && baseVoiceName ? [{ value: `base|${job.language}`, label: t("test.baseVoice", { name: baseVoiceName }) }] : []),
+    ...runs.flatMap((r) => r.exports.map((e) => ({ value: `${r.job_id}|${e.file}`, label: `${runLabel(r)} · ${variantLabel(e.variant)}` }))),
+  ].filter((o) => o.value !== `${job?.job_id}|${file}`);
 
   const speak = async () => {
     if (!job || !file || !text.trim()) return;
-    const targets = [{ job, file }];
+    const variantOf = (j: Job, f: string) => variantLabel(j.exports.find((e) => e.file === f)?.variant ?? "");
+    const targets: Target[] = [{ jobId: job.job_id, file, label: variantOf(job, file) }];
     const [cmpJob, cmpFile] = compare.split("|");
     const other = runs.find((r) => r.job_id === cmpJob);
-    if (other && other.exports.some((e) => e.file === cmpFile)) targets.push({ job: other, file: cmpFile });
+    if (cmpJob === "base" && cmpFile === job.language && baseVoiceName) targets.push({ jobId: "base", file: job.language, label: t("test.baseVoice", { name: baseVoiceName }), voiceId: job.voice_id ?? undefined });
+    else if (other && other.exports.some((e) => e.file === cmpFile)) targets.push({ jobId: other.job_id, file: cmpFile, label: `${runLabel(other)} · ${variantOf(other, cmpFile)}` });
+    if (targets.length > 1) targets[0].label = `${runLabel(job)} · ${targets[0].label}`;
     setBusy(true);
     try {
       const urls: string[] = [];
       const made: Sample[] = [];
       for (const target of targets) {
-        const blob = await api.synthesize({ job_id: target.job.job_id, file: target.file, text: text.trim(), length_scale: speed, noise_scale: noise, noise_w_scale: noiseW });
+        const blob = await api.synthesize({ job_id: target.jobId, file: target.file, voice_id: target.voiceId, text: text.trim(), length_scale: speed, noise_scale: noise, noise_w_scale: noiseW });
         const url = URL.createObjectURL(blob);
-        const variant = target.job.exports.find((e) => e.file === target.file)?.variant ?? "";
         counter.current += 1;
-        const who = targets.length > 1 ? `${runLabel(target.job)} · ` : "";
-        made.push({ id: counter.current, url, text: text.trim(), label: `${who}${variantLabel(variant)} · ${speed.toFixed(2)}×` });
+        made.push({ id: counter.current, url, text: text.trim(), label: `${target.label} · ${speed.toFixed(2)}×` });
         urls.push(url);
       }
       setSamples((prev) => [...made.slice().reverse(), ...prev].slice(0, 12));

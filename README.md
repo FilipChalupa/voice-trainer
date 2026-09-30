@@ -25,7 +25,9 @@ Only train voices of people who agreed to it.
 2. **Recording studio** – sentences are shown one at a time. Press Space, read, and the recording stops by itself
    after you finish. The sentence is the transcript, so no speech recognition is involved. Each take gets quality
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
-   add your own sentences. 5 minutes is the minimum, 30 minutes is recommended, 60 minutes is ideal.
+   add your own sentences or read one of the built-in paragraphs (a story, a forecast, a recipe) sentence by
+   sentence, so the intonation of connected speech gets recorded too. 5 minutes is the minimum, 30 minutes is
+   recommended, 60 minutes is ideal; the studio shows today's count, the pace and when the next goal is reached.
    The recordings with their texts can be downloaded as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`)
    to train with other tools, and such a ZIP can be imported back. A long recording (an audiobook chapter, a voice
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
@@ -42,8 +44,9 @@ Only train voices of people who agreed to it.
    stops by itself when the validation loss has not improved for a number of validations (patience). Afterwards
    the trained voice can read every training sentence back; takes it cannot reproduce (misread, wrong
    transcript, noise) are listed for a listen and flagged in the recording list.
-4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints or with an older run
-   (both read the same text back to back), then download
+4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run or
+   with the untouched base voice (both read the same text back to back), keep a pronunciation list for names and
+   abbreviations espeak reads wrong (applied when this app speaks; Piper itself has no dictionary), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |
@@ -135,6 +138,7 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | GET / POST / DELETE | `/api/voices` · `/api/voices/{id}/select` · `/api/voice` | Voices and settings |
 | POST / GET / DELETE | `/api/consent` · `/api/consent/audio` | Spoken consent of the voice owner |
 | GET / POST | `/api/prompts` · `/api/prompts/custom` · `/api/prompts/{id}/skip` | Sentences to read |
+| GET / POST | `/api/paragraphs` · `/api/paragraphs/{id}/queue` | Built-in connected texts, queued sentence by sentence |
 | GET / POST / PUT / DELETE | `/api/recordings` · `/api/recordings/{id}` · `…/audio` · `…/restore` | Recordings with transcripts |
 | GET / POST | `/api/dataset` · `/api/dataset/export` · `/api/dataset/import` | Dataset report, recordings + transcripts as a ZIP (LJSpeech layout) and back |
 | POST / GET | `/api/transcribe` · `/api/transcribe/cancel` | Long recording → Whisper transcript → sentence recordings |
@@ -143,7 +147,7 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | GET / POST / DELETE | `/api/jobs` · `/api/jobs/{id}/export` · `/api/jobs/{id}/bundle` · `…/previews/…` | Runs, previews, exported voices |
 | POST / GET | `/api/jobs/{id}/check` · `…/check/audio/{rid}` | Recording check with the trained voice |
 | GET | `/api/dataset/export/blocks` | Recordings joined into MP3 blocks for cloud voice cloning services |
-| POST | `/api/synthesize` | Text to speech with an exported voice |
+| POST | `/api/synthesize` | Text to speech with an exported voice (or `job_id: "base"` for the base voice) |
 | GET | `/api/system` | GPU, disk space, version |
 
 ## License

@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
+from .base import ensure_base_voice
+from .config import LANGUAGES, Voice, apply_lexicon, load_settings
 from .jobs import SAFE, _read_json, find_job_dir, list_exports
 
 router = APIRouter(prefix="/api", tags=["synthesis"])
@@ -59,11 +61,26 @@ async def post_synthesize(body: dict[str, Any]):
         raise HTTPException(400, {"code": "text_required", "message": "Enter some text to speak"})
     if len(text) > MAX_TEXT:
         raise HTTPException(400, {"code": "too_long", "message": f"Text is too long (max {MAX_TEXT} characters)"})
-    if not SAFE.match(name) or not name.endswith(".onnx"):
-        raise HTTPException(400, {"code": "bad_id", "message": "Bad model name"})
-    path = find_job_dir(job_id) / "export" / name
-    if not path.exists():
-        raise HTTPException(404, {"code": "not_found", "message": "Model not found"})
+    if job_id == "base":
+        # the untouched base voice, to hear what fine-tuning changed
+        if name not in LANGUAGES:
+            raise HTTPException(400, {"code": "bad_language", "message": "Unsupported language"})
+        try:
+            path = await run_in_threadpool(ensure_base_voice, name)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(502, {"code": "download_failed", "message": f"Could not download the base voice: {exc}"}) from exc
+        lexicon = {}
+        if body.get("voice_id"):
+            lexicon = load_settings(Voice(str(body["voice_id"]))).get("lexicon") or {}
+    else:
+        if not SAFE.match(name) or not name.endswith(".onnx"):
+            raise HTTPException(400, {"code": "bad_id", "message": "Bad model name"})
+        job_dir = find_job_dir(job_id)
+        path = job_dir / "export" / name
+        if not path.exists():
+            raise HTTPException(404, {"code": "not_found", "message": "Model not found"})
+        lexicon = load_settings(Voice(_read_json(job_dir / "job.json").get("voice_id") or "")).get("lexicon") or {}
+    text = apply_lexicon(text, lexicon)
 
     def clamp(value: Any, default: float, low: float, high: float) -> float:
         try:
@@ -130,6 +147,10 @@ def get_bundle(job_id: str):
             zf.write(job_dir / "export" / e["file"], e["file"])
             zf.write(job_dir / "export" / f"{e['file']}.json", f"{e['file']}.json")
         zf.writestr("README.txt", usage_text(name, job))
+        lexicon = load_settings(Voice(job.get("voice_id") or "")).get("lexicon") or {}
+        if lexicon:
+            # for reference only: Piper itself has no pronunciation dictionary, the respellings are applied by this app
+            zf.writestr("pronunciation.json", json.dumps(lexicon, indent=2, ensure_ascii=False))
         zf.writestr("training.json", json.dumps({k: job.get(k) for k in ("name", "language", "training", "max_epochs", "recordings", "minutes", "created_at")}, indent=2, ensure_ascii=False))
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})

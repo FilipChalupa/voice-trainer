@@ -20,6 +20,7 @@ export type VoiceSettings = {
   max_record_seconds: number;
   training: TrainingParams;
   created_at?: string;
+  lexicon: Record<string, string>;
 };
 
 export type VoiceSummary = {
@@ -85,6 +86,7 @@ export type CheckState = {
 export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
 
 export type Prompt = { id: string; text: string };
+export type Paragraph = { id: string; title: string; sentences: number; recorded: number; preview: string };
 export type Prompts = {
   items: Prompt[];
   total: number;
@@ -230,7 +232,7 @@ export const api = {
   createVoice: (name: string, owner: string, language: string) => request<VoicesPayload>("/api/voices", json("POST", { name, owner, language })),
   selectVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}/select`, { method: "POST" }),
   deleteVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}`, { method: "DELETE" }),
-  saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
+  saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams; lexicon?: Record<string, string> }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
   uploadConsent: (wav: Blob) => {
     const form = new FormData();
     form.append("file", wav, "consent.wav");
@@ -250,6 +252,8 @@ export const api = {
   deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
   restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),
   prompts: (count = 4) => request<Prompts>(`/api/prompts?count=${count}`),
+  paragraphs: () => request<{ items: Paragraph[] }>("/api/paragraphs"),
+  queueParagraph: (id: string) => request<{ added: number; sentences: number }>(`/api/paragraphs/${id}/queue`, { method: "POST" }),
   addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),
   skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
   dataset: () => request<DatasetReport>("/api/dataset"),
@@ -277,7 +281,7 @@ export const api = {
   jobs: () => request<{ items: Job[] }>("/api/jobs"),
   deleteJob: (id: string) => request<unknown>(`/api/jobs/${id}`, { method: "DELETE" }),
   exportJob: (id: string) => request<TrainingState>(`/api/jobs/${id}/export`, { method: "POST" }),
-  synthesize: async (body: { job_id: string; file: string; text: string; length_scale: number; noise_scale: number; noise_w_scale: number }) => {
+  synthesize: async (body: { job_id: string; file: string; voice_id?: string; text: string; length_scale: number; noise_scale: number; noise_w_scale: number }) => {
     const res = await check(await fetch("/api/synthesize", json("POST", body)));
     return res.blob();
   },

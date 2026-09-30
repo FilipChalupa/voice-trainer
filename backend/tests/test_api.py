@@ -138,6 +138,23 @@ def test_dataset_import_round_trip():
             client.delete(f"/api/recordings/{r['id']}")
 
 
+def test_paragraphs_queue_in_order_and_lexicon_is_applied():
+    from app.config import apply_lexicon
+
+    res = client.get("/api/paragraphs")
+    assert res.status_code == 200, res.text
+    items = res.json()["items"]
+    assert items and items[0]["sentences"] >= 5 and items[0]["recorded"] == 0
+    res = client.post(f"/api/paragraphs/{items[0]['id']}/queue").json()
+    assert res["added"] == res["sentences"]
+    queue = client.get("/api/prompts?count=3").json()["items"]
+    assert queue[0]["text"].startswith(items[0]["preview"][:20])
+    assert client.post("/api/paragraphs/nope/queue").status_code == 404
+    payload = client.put("/api/voice", json={"lexicon": {"Wi-Fi": "vaj faj", "HA": "há á", "": "x"}}).json()
+    assert payload["voice"]["lexicon"] == {"Wi-Fi": "vaj faj", "HA": "há á"}
+    assert apply_lexicon("Zapni wi-fi a HA. Haha.", payload["voice"]["lexicon"]) == "Zapni vaj faj a há á. Haha."
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False

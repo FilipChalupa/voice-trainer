@@ -226,17 +226,17 @@ def split_sentences(text: str) -> list[str]:
 
 
 def add_custom(voice: Voice, text: str) -> int:
+    """Queues the sentences of ``text`` (in order) before everything else, so they are read next."""
     existing = load_custom(voice)
     ids = {p["id"] for p in existing}
-    added = 0
+    fresh = []
     for s in split_sentences(text):
         pid = prompt_id(s)
         if pid not in ids:
-            existing.append({"id": pid, "text": s})
+            fresh.append({"id": pid, "text": s})
             ids.add(pid)
-            added += 1
-    custom_path(voice).write_text(json.dumps(existing, ensure_ascii=False, indent=1))
-    return added
+    custom_path(voice).write_text(json.dumps(fresh + existing, ensure_ascii=False, indent=1))
+    return len(fresh)
 
 
 def all_prompts(voice: Voice) -> tuple[list[dict[str, str]], str]:

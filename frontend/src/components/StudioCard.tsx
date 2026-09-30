@@ -16,6 +16,9 @@ import { RecordingList, Waveform } from "./RecordingList";
 import { ReviewDialog } from "./ReviewDialog";
 import { MicCheckDialog } from "./MicCheckDialog";
 import { PhoneDialog } from "./PhoneDialog";
+import { LevelMeter } from "./LevelMeter";
+import { ParagraphsDialog } from "./ParagraphsDialog";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 type Props = {
   voice: VoiceSettings;
@@ -39,6 +42,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
+  const [peak, setPeak] = useState(0);
   const [lastPeaks, setLastPeaks] = useState<number[] | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
@@ -49,6 +53,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [reviewOpen, setReviewOpen] = useState(false);
   const [micCheckOpen, setMicCheckOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
+  const [paragraphsOpen, setParagraphsOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [info, setInfo] = useState<string | null>(null);
 
@@ -137,14 +142,16 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       // sentences contain pauses at commas, so wait a little longer for silence than for a single word
       const { wav, samples } = await recorderRef.current.record(
         voice.max_record_seconds,
-        ({ rms, elapsed: e }) => {
+        ({ rms, peak: p, elapsed: e }) => {
           setLevel(Math.min(1, rms * 6));
+          setPeak(p);
           setElapsed(e);
         },
         { silenceMs: 1100, minSeconds: 1.2, onStart: (stop) => (stopRef.current = stop) },
       );
       stopRef.current = null;
       setLevel(0);
+      setPeak(0);
       setLastPeaks(waveformPeaks(samples));
       setPhase("uploading");
       const saved = await api.uploadRecording(wav, text.trim(), current?.id ?? null);
@@ -156,6 +163,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       onError(errorText(t, e));
     } finally {
       setLevel(0);
+      setPeak(0);
       setPhase("idle");
       busyRef.current = false;
     }
@@ -225,6 +233,25 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     }
   };
 
+  // today's work and the pace of the last quarter of an hour, to say when the next goal is reached
+  const session = (() => {
+    const today = new Date().toDateString();
+    const todays = recordings.filter((r) => new Date(r.created).toDateString() === today);
+    if (!todays.length) return null;
+    const now = Date.now();
+    const recent = recordings.filter((r) => now - new Date(r.created).getTime() < 15 * 60 * 1000);
+    let perHour = 0;
+    if (recent.length >= 3) {
+      const span = (now - new Date(recent[0].created).getTime()) / 3600000;
+      perHour = span > 0 ? Math.round(recent.length / span) : 0;
+    }
+    const recentMinutes = recent.reduce((a, r) => a + r.duration, 0) / 60;
+    const minutesPerHour = recent.length >= 3 ? recentMinutes / ((now - new Date(recent[0].created).getTime()) / 3600000) : 0;
+    const goal = totalMinutes < minutes.min ? minutes.min : totalMinutes < minutes.recommended ? minutes.recommended : totalMinutes < minutes.target ? minutes.target : null;
+    const toGoal = goal !== null && minutesPerHour > 0 ? Math.max(1, Math.round(((goal - totalMinutes) / minutesPerHour) * 60)) : null;
+    return { count: todays.length, minutes: todays.reduce((a, r) => a + r.duration, 0) / 60, perHour, goal, toGoal };
+  })();
+
   // takes with a warning or a machine transcript that nobody has confirmed yet
   const reviewQueue = recordings.filter((r) => !r.reviewed && (r.quality.issues.length > 0 || r.source === "transcribed"));
   const reviewApprove = async (rec: Recording, newText: string | null) => {
@@ -292,6 +319,11 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
 
           {current ? (
             <Box sx={{ p: 2, border: 1, borderColor: phase === "recording" ? "error.main" : "divider", borderRadius: 2 }}>
+              {recordings.length > 0 && (
+                <Typography variant="body2" color="text.secondary" noWrap sx={{ mb: 0.5 }}>
+                  {t("studio.previous")}: {recordings[recordings.length - 1].text}
+                </Typography>
+              )}
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography variant="caption" color="text.secondary">
                   {t("studio.prompt")}
@@ -348,7 +380,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 {t("studio.instructions")}
               </Typography>
-              <LinearProgress variant="determinate" value={level * 100} color={level > 0.9 ? "error" : "success"} sx={{ height: 10, borderRadius: 5, mb: 1 }} />
+              <Box sx={{ mb: 1 }}>
+                <LevelMeter level={level} peak={peak} />
+              </Box>
               {lastPeaks && <Waveform peaks={lastPeaks} color={theme.palette.primary.main} height={36} />}
             </Box>
           </Stack>
@@ -362,6 +396,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             </Button>
             <Button startIcon={<PlaylistAddIcon />} onClick={() => setCustomOpen(true)} disabled={disabled || busy}>
               {t("studio.custom")}
+            </Button>
+            <Button startIcon={<MenuBookIcon />} onClick={() => setParagraphsOpen(true)} disabled={disabled || busy}>
+              {t("studio.paragraphs")}
             </Button>
             {reviewQueue.length > 0 && (
               <Button startIcon={<FactCheckIcon />} onClick={() => setReviewOpen(true)} disabled={disabled || busy} color="warning">
@@ -386,6 +423,13 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           </Stack>
 
           <Typography variant="subtitle2">{t("rec.count", { n: recordings.length, minutes: totalMinutes.toFixed(1) })}</Typography>
+          {session && (
+            <Typography variant="body2" color="text.secondary">
+              {t("studio.session", { n: session.count, minutes: session.minutes.toFixed(1) })}
+              {session.perHour ? ` · ${t("studio.pace", { n: session.perHour })}` : ""}
+              {session.perHour && session.toGoal !== null && session.goal !== null ? ` · ${t("studio.toGoal", { goal: session.goal, minutes: session.toGoal })}` : ""}
+            </Typography>
+          )}
           <RecordingList
             items={recordings}
             disabled={disabled}
@@ -399,6 +443,15 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       </CardContent>
 
       <PhoneDialog open={phoneOpen} onClose={() => setPhoneOpen(false)} />
+      <ParagraphsDialog
+        open={paragraphsOpen}
+        onClose={() => setParagraphsOpen(false)}
+        onQueued={async (n) => {
+          setInfo(t("studio.customAdded", { n }));
+          await refresh();
+        }}
+        onError={onError}
+      />
       <MicCheckDialog open={micCheckOpen} recorder={recorderRef.current} deviceId={deviceId} sentence={text || t("mic.fallbackSentence")} recordings={recordings} onClose={() => setMicCheckOpen(false)} onError={onError} />
       <ReviewDialog open={reviewOpen} queue={reviewQueue} onClose={() => setReviewOpen(false)} onApprove={reviewApprove} onDelete={remove} onRedo={reviewRedo} />
 

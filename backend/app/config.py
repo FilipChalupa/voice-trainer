@@ -31,6 +31,7 @@ KEEP_JOBS = int(os.environ.get("KEEP_JOBS", "5"))
 SAMPLE_RATE = 22050
 
 HF_CHECKPOINTS = "https://huggingface.co/datasets/rhasspy/piper-checkpoints/resolve/main/"
+HF_VOICES = "https://huggingface.co/rhasspy/piper-voices/resolve/main/"
 CV_SENTENCES = "https://raw.githubusercontent.com/common-voice/common-voice/main/server/data/"
 
 LANGUAGES: dict[str, dict[str, Any]] = {
@@ -42,6 +43,8 @@ LANGUAGES: dict[str, dict[str, Any]] = {
             "name": "jirka (medium)",
             "file": "cs_CZ-jirka-medium.ckpt",
             "url": HF_CHECKPOINTS + "cs/cs_CZ/jirka/medium/epoch%3D8819-step%3D1435400.ckpt",
+            "voice": "cs_CZ-jirka-medium",  # the released ONNX voice of the same checkpoint, for comparisons
+            "voice_url": HF_VOICES + "cs/cs_CZ/jirka/medium/cs_CZ-jirka-medium.onnx",
             "epoch": 8819,
             "size_mb": 807,
             "license": "CC0 dataset",
@@ -64,6 +67,8 @@ LANGUAGES: dict[str, dict[str, Any]] = {
             "name": "lessac (medium)",
             "file": "en_US-lessac-medium.ckpt",
             "url": HF_CHECKPOINTS + "en/en_US/lessac/medium/epoch%3D2164-step%3D1355540.ckpt",
+            "voice": "en_US-lessac-medium",
+            "voice_url": HF_VOICES + "en/en_US/lessac/medium/en_US-lessac-medium.onnx",
             "epoch": 2164,
             "size_mb": 807,
             "license": "Blizzard 2013 (research use) dataset",
@@ -149,6 +154,7 @@ def _default_settings(name: str, language: str, owner: str) -> dict[str, Any]:
         "consent": None,  # {"text": ..., "at": ..., "owner": ...} once recorded
         "max_record_seconds": 15.0,
         "training": dict(DEFAULT_TRAINING),
+        "lexicon": {},  # word -> respelling that espeak pronounces right; applied when this app synthesises
         "skipped_prompts": [],
         "created_at": now(),
     }
@@ -183,6 +189,13 @@ def save_settings(voice: Voice, update: dict[str, Any]) -> dict[str, Any]:
         if owner != settings["owner"]:
             settings["consent"] = None  # a consent is bound to the person who gave it
         settings["owner"] = owner
+    if "lexicon" in update and isinstance(update["lexicon"], dict):
+        lexicon = {}
+        for word, spoken in list(update["lexicon"].items())[:500]:
+            word, spoken = " ".join(str(word).split())[:60], " ".join(str(spoken).split())[:120]
+            if word and spoken:
+                lexicon[word] = spoken
+        settings["lexicon"] = lexicon
     if "training" in update and isinstance(update["training"], dict):
         for key, default in DEFAULT_TRAINING.items():
             if key in update["training"] and update["training"][key] is not None:
@@ -274,3 +287,12 @@ def current_voice() -> Voice | None:
 
 for _d in (BASE_DIR, PROMPTS_DIR, VOICES_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+
+def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
+    """Replaces whole words (case-insensitive) by their respelling, longest entries first."""
+    if not lexicon:
+        return text
+    for word in sorted(lexicon, key=len, reverse=True):
+        text = re.sub(r"(?<!\w)" + re.escape(word) + r"(?!\w)", lexicon[word], text, flags=re.IGNORECASE)
+    return text

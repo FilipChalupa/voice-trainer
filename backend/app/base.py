@@ -97,3 +97,26 @@ def post_download(language: str):
 
     threading.Thread(target=run, daemon=True).start()
     return {"state": "downloading"}
+
+
+VOICES_DIR = BASE_DIR / "voices"
+_voice_lock = threading.Lock()
+
+
+def base_voice_path(language: str) -> Path:
+    return VOICES_DIR / f"{LANGUAGES[language]['base']['voice']}.onnx"
+
+
+def ensure_base_voice(language: str) -> Path:
+    """The released ONNX voice of the base checkpoint (~60 MB), fetched on first use for comparisons."""
+    target = base_voice_path(language)
+    with _voice_lock:
+        if target.exists() and Path(str(target) + ".json").exists():
+            return target
+        VOICES_DIR.mkdir(parents=True, exist_ok=True)
+        url = LANGUAGES[language]["base"]["voice_url"]
+        for suffix in (".json", ""):
+            resp = requests.get(url + suffix, timeout=300)
+            resp.raise_for_status()
+            Path(str(target) + suffix).write_bytes(resp.content)
+        return target

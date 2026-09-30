@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from .config import Voice, now
+from .config import Voice, apply_lexicon, load_settings, now
 from .jobs import SAFE, _read_json, find_job_dir, list_exports
 from .recordings import list_recordings
 
@@ -81,6 +81,7 @@ class Checker:
         try:
             voice = Voice(job["voice_id"])
             items = list_recordings(voice)
+            lexicon = load_settings(voice).get("lexicon") or {}
             check_dir = job_dir / "check"
             check_dir.mkdir(exist_ok=True)
             model_path = job_dir / "export" / export["file"]
@@ -90,7 +91,7 @@ class Checker:
                 self.state["progress"] = {"current": 0, "total": len(items)}
             for i, r in enumerate(items):
                 wav_path = check_dir / f"{r['id']}.wav"
-                wav_path.write_bytes(synthesize(model_path, r["text"], 1.0, 0.667, 0.8))
+                wav_path.write_bytes(synthesize(model_path, apply_lexicon(r["text"], lexicon), 1.0, 0.667, 0.8))
                 synth, sr_s = sf.read(str(wav_path), dtype="float32", always_2d=True)
                 ref, sr_r = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
                 if sr_s != sr_r:

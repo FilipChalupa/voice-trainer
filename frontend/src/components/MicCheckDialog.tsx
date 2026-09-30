@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, LinearProgress, Stack, Typography } from "@mui/material";
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import { type Recording } from "../api";
 import { useI18n } from "../i18n";
 import { Recorder } from "../lib/recorder";
+import { LevelMeter } from "./LevelMeter";
 
 type Props = { open: boolean; recorder: Recorder; deviceId: string; sentence: string; recordings: Recording[]; onClose: () => void; onError: (message: string) => void };
 type Step = "intro" | "silence" | "speech" | "result";
@@ -37,6 +38,7 @@ export function MicCheckDialog({ open, recorder, deviceId, sentence, recordings,
   const { t } = useI18n();
   const [step, setStep] = useState<Step>("intro");
   const [level, setLevel] = useState(0);
+  const [peak, setPeak] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const noiseRef = useRef(0);
 
@@ -51,10 +53,13 @@ export function MicCheckDialog({ open, recorder, deviceId, sentence, recordings,
     try {
       await recorder.init(deviceId || undefined);
       setStep("silence");
-      const quiet = await recorder.record(3, (l) => setLevel(l.rms * 8), { minSeconds: 3, silenceMs: 100000 });
+      const quiet = await recorder.record(3, (l) => setLevel(l.rms * 6), { minSeconds: 3, silenceMs: 100000 });
       noiseRef.current = measure(quiet.samples).rms;
       setStep("speech");
-      const spoken = await recorder.record(15, (l) => setLevel(l.rms * 8), { silenceMs: 1100, minSeconds: 1.2 });
+      const spoken = await recorder.record(15, (l) => {
+        setLevel(l.rms * 6);
+        setPeak(l.peak);
+      }, { silenceMs: 1100, minSeconds: 1.2 });
       const m = measure(spoken.samples);
       const previous = recordings.map((r) => r.quality.speech_db).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
       setResult({
@@ -94,7 +99,7 @@ export function MicCheckDialog({ open, recorder, deviceId, sentence, recordings,
           {step === "silence" && (
             <>
               <Typography variant="h6">{t("mic.silence")}</Typography>
-              <LinearProgress variant="determinate" value={Math.min(100, level * 100)} color="success" sx={{ height: 10, borderRadius: 5 }} />
+              <LevelMeter level={level} />
             </>
           )}
           {step === "speech" && (
@@ -103,7 +108,7 @@ export function MicCheckDialog({ open, recorder, deviceId, sentence, recordings,
               <Typography variant="h5" sx={{ fontWeight: 600 }}>
                 {sentence}
               </Typography>
-              <LinearProgress variant="determinate" value={Math.min(100, level * 100)} color={level > 0.9 ? "error" : "success"} sx={{ height: 10, borderRadius: 5 }} />
+              <LevelMeter level={level} peak={peak} />
             </>
           )}
           {step === "result" && result && (

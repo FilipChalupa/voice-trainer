@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
 from . import base
-from .config import KEEP_JOBS, LANGUAGES, MIN_MINUTES, SAMPLE_RATE, VOICES_DIR, Voice, current_voice, list_voices, load_settings, now, slugify
+from .config import KEEP_JOBS, LANGUAGES, MIN_MINUTES, SAMPLE_RATE, VOICES_DIR, Voice, apply_lexicon, current_voice, list_voices, load_settings, now, slugify
 from .recordings import list_recordings, total_minutes
 from .voices import has_consent, require_voice
 
@@ -304,7 +304,7 @@ class JobManager:
             "audio_dir": str(voice.recordings_dir),
             "job_dir": str(job_dir),
             "base_checkpoint": str(base.base_path(language)),
-            "test_sentences": LANGUAGES[language]["test_sentences"],
+            "test_sentences": [apply_lexicon(t, settings.get("lexicon") or {}) for t in LANGUAGES[language]["test_sentences"]],
             "created_at": now(),
         }
         (job_dir / "job.json").write_text(json.dumps(job, indent=2, ensure_ascii=False))
