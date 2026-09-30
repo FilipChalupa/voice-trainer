@@ -21,6 +21,9 @@ Only train voices of people who agreed to it.
 
 ## How it works
 
+A step bar at the top shows where the project stands (voice and consent, minutes recorded, training, test) and
+the header shows a running training from every tab. A glossary behind the question mark explains the terms.
+
 1. **Voice** – name the voice, enter the owner's name, pick the language (Czech, English) and record the spoken consent.
 2. **Recording studio** – sentences are shown one at a time. Press Space, read, and the recording stops by itself
    after you finish. The sentence is the transcript, so no speech recognition is involved. Each take gets quality
@@ -28,8 +31,9 @@ Only train voices of people who agreed to it.
    add your own sentences or read one of the built-in paragraphs (a story, a forecast, a recipe) sentence by
    sentence, so the intonation of connected speech gets recorded too. 5 minutes is the minimum, 30 minutes is
    recommended, 60 minutes is ideal; the studio shows today's count, the pace and when the next goal is reached.
-   The recordings with their texts can be downloaded as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`)
-   to train with other tools, and such a ZIP can be imported back. A long recording (an audiobook chapter, a voice
+   The **Data** tab holds the dataset overview and the imports: the recordings with their texts can be downloaded
+   as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`) to train with other tools, and such a ZIP can be
+   imported back. A long recording (an audiobook chapter, a voice
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
    are marked for review. The dataset overview warns when some takes are much louder, quieter or noisier than the
    rest (a different microphone or room makes the trained voice uneven). A microphone test measures the room

@@ -5,7 +5,7 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
 const OUT = process.env.OUT_DIR || "/out";
 (async () => {
   const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
-  const plan = { Voice: ["voice"], Recording: ["studio", "dataset", "transcribe"], Training: ["training", "jobs"], "Test & export": ["test", "lexicon"] };
+  const plan = { Voice: ["voice"], Recording: ["studio"], Data: ["dataset", "transcribe"], Training: ["training"], "Test & deploy": ["test", "deploy"] };
   for (const scheme of ["light", "dark"]) {
     const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, colorScheme: scheme, locale: "en-US", deviceScaleFactor: 1.5, permissions: ["microphone"] });
     const page = await ctx.newPage();
@@ -23,7 +23,7 @@ const OUT = process.env.OUT_DIR || "/out";
     for (const [tab, names] of Object.entries(plan)) {
       await page.getByRole("tab", { name: tab }).click();
       await page.waitForTimeout(2000);
-      if (tab === "Test & export") {
+      if (tab === "Test & deploy") {
         await page.getByRole("button", { name: /^Speak$/i }).click();
         await page.waitForTimeout(6000);
       }

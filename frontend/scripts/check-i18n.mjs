@@ -18,7 +18,7 @@ const walk = (dir) => readdirSync(dir).flatMap((f) => {
 // the helper code below the dictionaries in i18n.tsx may reference keys too
 const helpers = i18n.slice(i18n.indexOf("export type TKey"));
 const src = walk("src").filter((p) => !p.endsWith("i18n.tsx")).map((p) => readFileSync(p, "utf8")).join("\n") + helpers;
-const dynamicPrefixes = ["rec.issue.", "rec.issueHint.", "rec.source.", "rec.sourceHint.", "train.status.", "train.stage.", "train.estimate.", "imp.stage.", "train.f.", "train.h.", "jobs.s.", "err.", "test.variant."];
+const dynamicPrefixes = ["rec.issue.", "rec.issueHint.", "rec.source.", "rec.sourceHint.", "train.status.", "train.stage.", "train.estimate.", "imp.stage.", "help.", "rec.filter.", "train.f.", "train.h.", "jobs.s.", "err.", "test.variant."];
 const unused = [...cs].filter((k) => !src.includes(`"${k}"`) && !src.includes(`\`${k}\``) && !dynamicPrefixes.some((p) => k.startsWith(p)));
 
 let ok = true;

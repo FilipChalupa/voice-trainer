@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Box, Button, Card, CardContent, CardHeader, Chip, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
-import HistoryIcon from "@mui/icons-material/History";
+import { Box, Button, Chip, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
@@ -26,11 +25,9 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
   };
 
   return (
-    <Card>
-      <CardHeader avatar={<HistoryIcon color="primary" />} title={t("jobs.title")} subheader={t("jobs.subtitle")} />
-      <CardContent>
+    <Box sx={{ px: 1, pb: 1 }}>
         {jobs.length === 0 ? (
-          <Typography color="text.secondary">{t("jobs.empty")}</Typography>
+          <Typography color="text.secondary" sx={{ p: 1 }}>{t("jobs.empty")}</Typography>
         ) : (
           <Box sx={{ overflowX: "auto" }}>
             <Table size="small">
@@ -88,8 +85,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
             </Table>
           </Box>
         )}
-      </CardContent>
       <CheckDialog job={checking} onClose={() => setChecking(null)} onError={onError} />
-    </Card>
+    </Box>
   );
 }

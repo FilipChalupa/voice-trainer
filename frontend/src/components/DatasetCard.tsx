@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, Typography } from "@mui/material";
 import DatasetIcon from "@mui/icons-material/Dataset";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -7,11 +7,10 @@ import { api, type DatasetReport, type ImportResult } from "../api";
 import { errorText, useI18n } from "../i18n";
 
 /** What will go into training: amount of audio, warnings, letter coverage, length distribution. */
-type Props = { version: number; disabled: boolean; onImported: () => void; onError: (message: string) => void };
+type Props = { report: DatasetReport | null; disabled: boolean; onImported: () => void; onError: (message: string) => void };
 
-export function DatasetCard({ version, disabled, onImported, onError }: Props) {
+export function DatasetCard({ report, disabled, onImported, onError }: Props) {
   const { t } = useI18n();
-  const [report, setReport] = useState<DatasetReport | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -31,10 +30,6 @@ export function DatasetCard({ version, disabled, onImported, onError }: Props) {
       if (fileRef.current) fileRef.current.value = "";
     }
   };
-
-  useEffect(() => {
-    api.dataset().then(setReport).catch(() => setReport(null));
-  }, [version]);
 
   if (!report) return null;
   const skippedReasons = result ? Object.entries(result.skipped.reduce<Record<string, number>>((acc, s) => ({ ...acc, [s.reason]: (acc[s.reason] ?? 0) + 1 }), {})) : [];

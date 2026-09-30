@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Box, Chip, IconButton, Stack, TextField, Tooltip, Typography, useTheme } from "@mui/material";
+import { useMemo, useState } from "react";
+import { Box, Button, Chip, IconButton, Stack, TextField, Tooltip, Typography, useTheme } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -8,6 +9,9 @@ import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import type { Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
+
+type Filter = "all" | "warnings" | "transcribed" | "unreviewed";
+const PAGE = 50;
 
 type Props = {
   items: Recording[];
@@ -25,23 +29,59 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
   const theme = useTheme();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [limit, setLimit] = useState(PAGE);
+
+  const newestFirst = useMemo(() => [...items].reverse(), [items]);
+  const q = query.trim().toLowerCase();
+  const filtered = newestFirst.filter((rec) => {
+    if (q && !rec.text.toLowerCase().includes(q)) return false;
+    if (filter === "warnings") return rec.quality.issues.length > 0;
+    if (filter === "transcribed") return rec.source === "transcribed";
+    if (filter === "unreviewed") return !rec.reviewed && (rec.quality.issues.length > 0 || rec.source === "transcribed");
+    return true;
+  });
+  const shown = filtered.slice(0, limit);
+  const index = (rec: Recording) => items.length - newestFirst.indexOf(rec);
 
   const save = async (rec: Recording) => {
     await onEdit(rec, draft);
     setEditing(null);
   };
 
+  const withWarnings = items.filter((r) => r.quality.issues.length > 0).length;
+  const transcribed = items.filter((r) => r.source === "transcribed").length;
+
   return (
+    <Box>
+      {items.length > 8 && (
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} sx={{ mb: 1 }}>
+          <TextField size="small" placeholder={t("rec.search")} value={query} onChange={(e) => setQuery(e.target.value)} InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 0.5, color: "text.secondary" }} /> }} sx={{ flex: 1 }} />
+          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+            {(["all", "warnings", "transcribed", "unreviewed"] as Filter[]).map((f) => {
+              const n = f === "all" ? items.length : f === "warnings" ? withWarnings : f === "transcribed" ? transcribed : items.filter((r) => !r.reviewed && (r.quality.issues.length > 0 || r.source === "transcribed")).length;
+              if (f !== "all" && n === 0) return null;
+              return <Chip key={f} size="small" label={`${t(`rec.filter.${f}` as TKey)} (${n})`} color={filter === f ? "primary" : "default"} variant={filter === f ? "filled" : "outlined"} onClick={() => setFilter(f)} />;
+            })}
+          </Stack>
+        </Stack>
+      )}
     <Box sx={{ maxHeight: 420, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 2 }}>
       {items.length === 0 && (
         <Typography sx={{ p: 2 }} color="text.secondary">
           {t("rec.empty")}
         </Typography>
       )}
-      {[...items].reverse().map((rec, idx) => {
+      {items.length > 0 && filtered.length === 0 && (
+        <Typography sx={{ p: 2 }} color="text.secondary">
+          {t("rec.noMatch")}
+        </Typography>
+      )}
+      {shown.map((rec, idx) => {
         const isPlaying = playingId === rec.id;
         return (
-          <Stack key={rec.id} direction="row" spacing={1} alignItems="center" sx={{ px: 1, py: 0.75, borderBottom: idx < items.length - 1 ? 1 : 0, borderColor: "divider", bgcolor: isPlaying ? "action.selected" : "transparent" }}>
+          <Stack key={rec.id} direction="row" spacing={1} alignItems="center" sx={{ px: 1, py: 0.75, borderBottom: idx < shown.length - 1 ? 1 : 0, borderColor: "divider", bgcolor: isPlaying ? "action.selected" : "transparent" }}>
             <IconButton size="small" onClick={() => onTogglePlay(rec)} color={isPlaying ? "primary" : "default"}>
               {isPlaying ? <StopIcon /> : <PlayArrowIcon />}
             </IconButton>
@@ -56,11 +96,11 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
               )}
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
                 <Typography variant="caption" color="text.secondary">
-                  #{items.length - idx} · {rec.duration.toFixed(1)} s · {t("rec.peakInfo", { peak: Math.round((rec.quality.peak ?? 0) * 100), db: rec.quality.rms_db ?? 0 })}
+                  #{index(rec)} · {rec.duration.toFixed(1)} s · {t("rec.peakInfo", { peak: Math.round((rec.quality.peak ?? 0) * 100), db: rec.quality.rms_db ?? 0 })}
                 </Typography>
                 {rec.source && (
                   <Tooltip title={t(`rec.sourceHint.${rec.source}` as TKey)}>
-                    <Chip size="small" color={rec.source === "transcribed" ? "info" : "default"} variant="outlined" label={t(`rec.source.${rec.source}` as TKey)} sx={{ height: 18, fontSize: 11 }} />
+                    <Chip size="small" variant="outlined" label={t(`rec.source.${rec.source}` as TKey)} sx={{ height: 18, fontSize: 11 }} />
                   </Tooltip>
                 )}
                 {rec.quality.issues.map((issue) => (
@@ -111,6 +151,12 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
           </Stack>
         );
       })}
+      {filtered.length > shown.length && (
+        <Button fullWidth size="small" onClick={() => setLimit((n) => n + PAGE)}>
+          {t("rec.showMore", { n: filtered.length - shown.length })}
+        </Button>
+      )}
+    </Box>
     </Box>
   );
 }

@@ -21,10 +21,11 @@ type Props = {
   voice: VoiceSettings;
   defaults: TrainingParams;
   system: SystemInfo | null;
-  datasetVersion: number;
+  report: DatasetReport | null;
   onVoices: (p: VoicesPayload) => void;
   onError: (message: string) => void;
   onFinished: () => void;
+  onGo: (tab: "voice" | "record") => void;
 };
 
 const STATUS_COLOR: Record<TrainingState["status"], "default" | "info" | "success" | "error" | "warning"> = {
@@ -54,13 +55,12 @@ function duration(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)} h`;
 }
 
-export function TrainingCard({ state, log, voice, defaults, system, datasetVersion, onVoices, onError, onFinished }: Props) {
+export function TrainingCard({ state, log, voice, report, defaults, system, onVoices, onError, onFinished, onGo }: Props) {
   const { t } = useI18n();
   const [showLog, setShowLog] = useState(false);
   const [busy, setBusy] = useState(false);
   const [params, setParams] = useState<TrainingParams>(voice.training);
   const [extra, setExtra] = useState(200);
-  const [report, setReport] = useState<DatasetReport | null>(null);
   const [base, setBase] = useState<BaseItem | null>(null);
   const [calibration, setCalibration] = useState<Calibration | null>(null);
   const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
@@ -69,13 +69,12 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
 
   useEffect(() => setParams(voice.training), [voice.id, voice.training]);
   useEffect(() => {
-    api.dataset().then(setReport).catch(() => setReport(null));
     api.calibration().then(setCalibration).catch(() => setCalibration(null));
     api
       .base()
       .then((r) => setBase(r.items.find((b) => b.language === voice.language) ?? null))
       .catch(() => setBase(null));
-  }, [datasetVersion, voice.language, state.status]);
+  }, [voice.language, state.status]);
   useEffect(() => {
     if (showLog && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [log, showLog]);
@@ -127,10 +126,15 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
   const stageText = state.stage_key && STAGES.has(state.stage_key) ? t(`train.stage.${state.stage_key}` as TKey, state.message_params ?? {}) : null;
   const preview = state.previews.find((p) => p.epoch === previewEpoch) ?? state.previews[state.previews.length - 1];
 
-  const requirement = (ok: boolean, okText: string, badText: string, soft = false) => (
+  const requirement = (ok: boolean, okText: string, badText: string, soft = false, action?: { label: string; onClick: () => void }) => (
     <Stack direction="row" spacing={1} alignItems="center" key={okText}>
       {ok ? <CheckCircleIcon fontSize="small" color="success" /> : <ErrorOutlineIcon fontSize="small" color={soft ? "info" : "warning"} />}
       <Typography variant="body2">{ok ? okText : badText}</Typography>
+      {!ok && action && (
+        <Button size="small" onClick={action.onClick} sx={{ py: 0 }}>
+          {action.label}
+        </Button>
+      )}
     </Stack>
   );
 
@@ -141,8 +145,8 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
         <Stack spacing={2}>
           {!running && (
             <Stack spacing={0.5}>
-              {requirement(!!report?.has_consent, t("train.req.consent"), t("train.req.consentMissing"))}
-              {requirement((report?.minutes ?? 0) >= (report?.min_minutes ?? 5), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }))}
+              {requirement(!!report?.has_consent, t("train.req.consent"), t("train.req.consentMissing"), false, !report?.has_consent ? { label: t("train.req.goVoice"), onClick: () => onGo("voice") } : undefined)}
+              {requirement((report?.minutes ?? 0) >= (report?.min_minutes ?? 5), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), false, (report?.minutes ?? 0) < (report?.min_minutes ?? 5) ? { label: t("train.req.goRecord"), onClick: () => onGo("record") } : undefined)}
               {base && requirement(base.installed, t("train.req.base", { name: base.name }), t("train.req.baseMissing", { name: base.name, size: base.size_mb }), true)}
               {requirement(gpuOk, t("train.req.gpu"), t("train.req.gpuMissing"))}
               {calibration && report && report.count > 0 && (

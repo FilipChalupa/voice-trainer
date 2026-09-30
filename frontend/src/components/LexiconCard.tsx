@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Card, CardContent, CardHeader, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
-import SpellcheckIcon from "@mui/icons-material/Spellcheck";
+import { Button, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { api, type VoiceSettings, type VoicesPayload } from "../api";
@@ -9,7 +8,7 @@ import { errorText, useI18n } from "../i18n";
 type Props = { voice: VoiceSettings; onVoices: (p: VoicesPayload) => void; onError: (message: string) => void };
 
 /** Respellings for words espeak reads wrong (names, brands, abbreviations); applied when this app speaks. */
-export function LexiconCard({ voice, onVoices, onError }: Props) {
+export function LexiconEditor({ voice, onVoices, onError }: Props) {
   const { t } = useI18n();
   const [entries, setEntries] = useState<[string, string][]>(Object.entries(voice.lexicon ?? {}));
   const [word, setWord] = useState("");
@@ -40,9 +39,6 @@ export function LexiconCard({ voice, onVoices, onError }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader avatar={<SpellcheckIcon color="primary" />} title={t("lex.title")} subheader={t("lex.subtitle")} />
-      <CardContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
             {t("lex.help")}
@@ -87,7 +83,5 @@ export function LexiconCard({ voice, onVoices, onError }: Props) {
             </Table>
           )}
         </Stack>
-      </CardContent>
-    </Card>
   );
 }

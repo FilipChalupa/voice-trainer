@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, IconButton, MenuItem, Slider, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Card, CardContent, CardHeader, Chip, MenuItem, Slider, Stack, TextField, Typography } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import HearingIcon from "@mui/icons-material/Hearing";
+import { EmptyState } from "./EmptyState";
+import { LexiconEditor } from "./LexiconCard";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import DownloadIcon from "@mui/icons-material/Download";
-import { api, type Job } from "../api";
+import { api, type Job, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 import { playSequence } from "../lib/audio";
 import { AudioPlayer } from "./AudioPlayer";
 
-type Props = { jobs: Job[]; baseVoiceName: string | null; onError: (message: string) => void };
+type Props = { jobs: Job[]; voice: VoiceSettings; baseVoiceName: string | null; onVoices: (p: VoicesPayload) => void; onError: (message: string) => void; onGo: (tab: "record" | "train") => void };
 type Target = { jobId: string; file: string; label: string; voiceId?: string };
 type Sample = { id: number; url: string; text: string; label: string };
 
@@ -19,7 +22,7 @@ const DEFAULT_TEXT: Record<string, string> = {
 };
 
 /** Text-to-speech playground for the exported voices of a run, plus downloads and Home Assistant instructions. */
-export function TestCard({ jobs, baseVoiceName, onError }: Props) {
+export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }: Props) {
   const { t } = useI18n();
   const runs = useMemo(() => jobs.filter((j) => j.exports.length > 0), [jobs]);
   const [jobId, setJobId] = useState("");
@@ -91,7 +94,7 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
       <CardHeader avatar={<RecordVoiceOverIcon color="primary" />} title={t("test.title")} subheader={t("test.subtitle")} />
       <CardContent>
         {!job ? (
-          <Typography color="text.secondary">{t("test.noModel")}</Typography>
+          <EmptyState icon={<HearingIcon color="disabled" sx={{ fontSize: 48 }} />} title={t("test.noModel")} text={t("test.noModelHint")} action={{ label: t("test.noModelAction"), onClick: () => onGo("train") }} />
         ) : (
           <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -151,11 +154,6 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
               <Button variant="contained" size="large" startIcon={<VolumeUpIcon />} onClick={speak} disabled={busy || !text.trim()}>
                 {busy ? t("test.speaking") : t("test.speak")}
               </Button>
-              {job.bundle_url && (
-                <Button variant="outlined" startIcon={<DownloadIcon />} href={job.bundle_url} download>
-                  {t("test.download")}
-                </Button>
-              )}
             </Stack>
 
             {samples.length > 0 && (
@@ -171,21 +169,17 @@ export function TestCard({ jobs, baseVoiceName, onError }: Props) {
               </Box>
             )}
 
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                {t("test.files")}
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {job.exports.map((e) => (
-                  <Button key={e.file} size="small" href={e.url} download startIcon={<DownloadIcon />} sx={{ textTransform: "none" }}>
-                    {e.file} ({(e.size / (1 << 20)).toFixed(0)} MB)
-                  </Button>
-                ))}
-              </Stack>
-            </Box>
-            <Alert severity="info" variant="outlined">
-              {t("test.ha")}
-            </Alert>
+            <Accordion disableGutters variant="outlined">
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle2">{t("lex.title")}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  {t("lex.subtitle")}
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <LexiconEditor voice={voice} onVoices={onVoices} onError={onError} />
+              </AccordionDetails>
+            </Accordion>
           </Stack>
         )}
       </CardContent>

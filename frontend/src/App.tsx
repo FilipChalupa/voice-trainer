@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, AppBar, Badge, Box, Container, MenuItem, Select, Snackbar, Stack, Tab, Tabs, Toolbar, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, AppBar, Badge, Box, Container, IconButton, MenuItem, Select, Snackbar, Stack, Tab, Tabs, Toolbar, Tooltip, Typography } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import MicNoneIcon from "@mui/icons-material/MicNone";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import { AppThemeProvider } from "./theme";
-import { api, type Job, type SystemInfo, type VoicesPayload } from "./api";
+import { api, type DatasetReport, type Job, type SystemInfo, type VoicesPayload } from "./api";
 import { VoiceCard } from "./components/VoiceCard";
 import { StudioCard } from "./components/StudioCard";
 import { DatasetCard } from "./components/DatasetCard";
 import { TranscribeCard } from "./components/TranscribeCard";
-import { LexiconCard } from "./components/LexiconCard";
 import { TrainingCard } from "./components/TrainingCard";
 import { JobsCard } from "./components/JobsCard";
 import { TestCard } from "./components/TestCard";
+import { DeployCard } from "./components/DeployCard";
+import { ProgressSteps, type TabId } from "./components/ProgressSteps";
+import { TrainingChip } from "./components/TrainingChip";
+import { HelpDialog } from "./components/HelpDialog";
+import { EmptyState } from "./components/EmptyState";
 import { SystemChip } from "./components/SystemChip";
 import { useTrainingStream } from "./lib/useTrainingStream";
 import { errorText, I18nProvider, useI18n, type Lang } from "./i18n";
 
-const TABS = ["voice", "record", "train", "test"] as const;
-type TabId = (typeof TABS)[number];
+const TABS: TabId[] = ["voice", "record", "data", "train", "test"];
 
 export default function App() {
   return (
@@ -35,6 +41,8 @@ function Main() {
   const [system, setSystem] = useState<SystemInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [datasetVersion, setDatasetVersion] = useState(0);
+  const [report, setReport] = useState<DatasetReport | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const { state, log } = useTrainingStream();
   const [tab, setTab] = useState<TabId>(() => {
     const hash = location.hash.replace("#", "") as TabId;
@@ -57,6 +65,16 @@ function Main() {
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // the dataset report feeds the step bar, the dataset overview and the training requirements
+  const voiceId = payload?.voice?.id ?? null;
+  useEffect(() => {
+    if (!voiceId) {
+      setReport(null);
+      return;
+    }
+    api.dataset().then(setReport).catch(() => setReport(null));
+  }, [voiceId, datasetVersion, state.status]);
 
   useEffect(() => {
     api
@@ -112,7 +130,13 @@ function Main() {
               {voice.name}
             </Typography>
           )}
+          <TrainingChip state={state} onClick={() => selectTab("train")} />
           <SystemChip info={system} />
+          <Tooltip title={t("help.title")}>
+            <IconButton onClick={() => setHelpOpen(true)} size="small" sx={{ mr: 1 }}>
+              <HelpOutlineIcon />
+            </IconButton>
+          </Tooltip>
           <Select size="small" value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t("app.language")} sx={{ minWidth: 90 }}>
             <MenuItem value="cs">Čeština</MenuItem>
             <MenuItem value="en">English</MenuItem>
@@ -121,6 +145,7 @@ function Main() {
         <Tabs value={tab} onChange={(_, v) => selectTab(v as TabId)} variant="scrollable" allowScrollButtonsMobile sx={{ px: 1 }}>
           <Tab value="voice" label={t("tabs.voice")} />
           <Tab value="record" label={t("tabs.record")} disabled={!voice} />
+          <Tab value="data" label={t("tabs.data")} disabled={!voice} />
           <Tab
             value="train"
             disabled={!voice}
@@ -134,27 +159,42 @@ function Main() {
         </Tabs>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ py: 3 }}>
+      <Container maxWidth="md" sx={{ py: 2 }}>
         <Stack spacing={3}>
+          {payload && <ProgressSteps voice={voice} report={report} jobs={jobs} state={state} tab={tab} onGo={selectTab} />}
           {tab === "voice" && payload && <VoiceCard payload={payload} disabled={running} onChange={onVoices} onError={showError} />}
           {tab !== "voice" && !voice && <Alert severity="info">{t("app.noVoice")}</Alert>}
           {tab === "record" && voice && payload && (
+            <StudioCard key={`${voice.id}-${importCount}`} voice={voice} minutes={payload.minutes} disabled={running} onChanged={() => setDatasetVersion((v) => v + 1)} onError={showError} />
+          )}
+          {tab === "data" && voice && payload && (
             <>
-              <StudioCard key={`${voice.id}-${importCount}`} voice={voice} minutes={payload.minutes} disabled={running} onChanged={() => setDatasetVersion((v) => v + 1)} onError={showError} />
-              <DatasetCard version={datasetVersion} disabled={running} onImported={onImported} onError={showError} />
+              {report && report.count === 0 && (
+                <EmptyState icon={<MicNoneIcon color="disabled" sx={{ fontSize: 48 }} />} title={t("empty.dataTitle")} text={t("empty.dataText")} action={{ label: t("empty.dataAction"), onClick: () => selectTab("record") }} />
+              )}
+              <DatasetCard report={report} disabled={running} onImported={onImported} onError={showError} />
               <TranscribeCard voiceId={voice.id} disabled={running} onImported={onImported} onError={showError} />
             </>
           )}
           {tab === "train" && voice && payload && (
             <>
-              <TrainingCard state={state} log={log} voice={voice} defaults={payload.defaults} system={system} datasetVersion={datasetVersion} onVoices={onVoices} onError={showError} onFinished={loadJobs} />
-              <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} />
+              <TrainingCard state={state} log={log} voice={voice} report={report} defaults={payload.defaults} system={system} onVoices={onVoices} onError={showError} onFinished={loadJobs} onGo={selectTab} />
+              {jobs.length > 0 && (
+                <Accordion disableGutters variant="outlined" defaultExpanded={jobs.length > 1 && !running}>
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Typography variant="subtitle2">{t("jobs.accordion", { n: jobs.length })}</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ p: 0 }}>
+                    <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} />
+                  </AccordionDetails>
+                </Accordion>
+              )}
             </>
           )}
           {tab === "test" && voice && payload && (
             <>
-              <TestCard jobs={jobs} baseVoiceName={payload.languages.find((l) => l.id === voice.language)?.base.name ?? null} onError={showError} />
-              <LexiconCard voice={voice} onVoices={onVoices} onError={showError} />
+              <TestCard jobs={jobs} voice={voice} baseVoiceName={payload.languages.find((l) => l.id === voice.language)?.base.name ?? null} onVoices={onVoices} onError={showError} onGo={selectTab} />
+              <DeployCard jobs={jobs} />
             </>
           )}
           <Typography variant="caption" color="text.secondary" textAlign="center">
@@ -163,6 +203,7 @@ function Main() {
         </Stack>
       </Container>
 
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Snackbar open={!!error} autoHideDuration={8000} onClose={() => setError(null)} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
         <Alert severity="error" onClose={() => setError(null)} variant="filled">
           {error}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, MenuItem, Snackbar, Stack, Switch, TextField, Typography, useTheme } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, ListItemIcon, ListItemText, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Typography, useTheme } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import StopIcon from "@mui/icons-material/Stop";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
@@ -9,6 +9,7 @@ import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import SettingsVoiceIcon from "@mui/icons-material/SettingsVoice";
 import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { api, type Prompt, type Prompts, type Recording, type VoiceSettings } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder, waveformPeaks } from "../lib/recorder";
@@ -56,6 +57,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [reviewOpen, setReviewOpen] = useState(false);
   const [micCheckOpen, setMicCheckOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
+  const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
   const [paragraphsOpen, setParagraphsOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [info, setInfo] = useState<string | null>(null);
@@ -361,23 +363,34 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             <Button startIcon={<ReplayIcon />} onClick={redoLast} disabled={disabled || busy || recordings.length === 0}>
               {t("studio.redo")}
             </Button>
-            <Button startIcon={<PlaylistAddIcon />} onClick={() => setCustomOpen(true)} disabled={disabled || busy}>
-              {t("studio.custom")}
-            </Button>
-            <Button startIcon={<MenuBookIcon />} onClick={() => setParagraphsOpen(true)} disabled={disabled || busy}>
-              {t("studio.paragraphs")}
-            </Button>
             {review.queue.length > 0 && (
               <Button startIcon={<FactCheckIcon />} onClick={() => setReviewOpen(true)} disabled={disabled || busy} color="warning">
                 {t("studio.review", { n: review.queue.length })}
               </Button>
             )}
-            <Button startIcon={<SettingsVoiceIcon />} onClick={() => setMicCheckOpen(true)} disabled={disabled || busy}>
-              {t("studio.micCheck")}
+            <Button startIcon={<MoreHorizIcon />} onClick={(e) => setMoreAnchor(e.currentTarget)} disabled={busy}>
+              {t("studio.more")}
             </Button>
-            <Button startIcon={<PhoneIphoneIcon />} onClick={() => setPhoneOpen(true)} disabled={busy}>
-              {t("studio.phone")}
-            </Button>
+            <Menu anchorEl={moreAnchor} open={!!moreAnchor} onClose={() => setMoreAnchor(null)}>
+              {[
+                { icon: <PlaylistAddIcon fontSize="small" />, label: t("studio.custom"), open: () => setCustomOpen(true), disabled: disabled },
+                { icon: <MenuBookIcon fontSize="small" />, label: t("studio.paragraphs"), open: () => setParagraphsOpen(true), disabled: disabled },
+                { icon: <SettingsVoiceIcon fontSize="small" />, label: t("studio.micCheck"), open: () => setMicCheckOpen(true), disabled: disabled },
+                { icon: <PhoneIphoneIcon fontSize="small" />, label: t("studio.phone"), open: () => setPhoneOpen(true), disabled: false },
+              ].map((item) => (
+                <MenuItem
+                  key={item.label}
+                  disabled={item.disabled}
+                  onClick={() => {
+                    setMoreAnchor(null);
+                    item.open();
+                  }}
+                >
+                  <ListItemIcon>{item.icon}</ListItemIcon>
+                  <ListItemText>{item.label}</ListItemText>
+                </MenuItem>
+              ))}
+            </Menu>
             <FormControlLabel control={<Switch checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} />} label={t("studio.autoplay")} />
             <TextField select size="small" label={t("studio.mic")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
               <MenuItem value="">{t("studio.micDefault")}</MenuItem>

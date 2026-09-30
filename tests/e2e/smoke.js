@@ -16,7 +16,7 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
     await page.getByRole("button", { name: "Create" }).click();
     await page.waitForTimeout(1500);
   }
-  const expected = { Voice: ["1. Voice", "Consent of the voice owner"], Recording: ["Recording studio", "Dataset overview"], Training: ["Voice training", "Run history"], "Test & export": ["Test & export"] };
+  const expected = { Voice: ["1. Voice", "Consent of the voice owner"], Recording: ["Recording studio"], Data: ["Dataset overview", "Import a long recording"], Training: ["Voice training"], "Test & deploy": ["4. Test", "Deployment"] };
   for (const [tab, titles] of Object.entries(expected)) {
     await page.getByRole("tab", { name: tab }).click();
     await page.waitForTimeout(1500);
@@ -28,19 +28,26 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
   // the studio's dialogs open and close
   await page.getByRole("tab", { name: "Recording" }).click();
   await page.waitForTimeout(1000);
-  for (const [button, expected] of [
+  for (const [item, expected] of [
     ["Paragraphs", "Connected texts to read"],
     ["Microphone test", "Microphone and room test"],
     ["Record with a phone", "Recording with a phone"],
     ["Custom sentences", "Add your own sentences"],
   ]) {
-    await page.getByRole("button", { name: button }).click();
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("menuitem", { name: item }).click();
     await page.waitForTimeout(800);
     const dialog = page.getByRole("dialog");
-    if (!(await dialog.innerText()).includes(expected)) throw new Error(`Dialog ${button}: missing "${expected}"`);
+    if (!(await dialog.innerText()).includes(expected)) throw new Error(`Dialog ${item}: missing "${expected}"`);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
   }
+  // the glossary and the step bar
+  await page.getByRole("button", { name: "Glossary" }).click();
+  await page.waitForTimeout(500);
+  if (!(await page.getByRole("dialog").innerText()).includes("Epoch")) throw new Error("Glossary did not open");
+  await page.keyboard.press("Escape");
+  if ((await page.locator(".MuiStepper-root .MuiStep-root").count()) !== 4) throw new Error("Step bar missing");
   if (errors.length) throw new Error(`Page errors: ${errors.join("; ")}`);
   console.log("OK: all tabs rendered, dialogs open");
   await browser.close();
