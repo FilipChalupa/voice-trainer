@@ -25,7 +25,8 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   );
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
+      {/* enableColorScheme sets color-scheme on <html>, so scrollbars and form controls follow the theme too */}
+      <CssBaseline enableColorScheme />
       {children}
     </ThemeProvider>
   );
