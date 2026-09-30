@@ -44,7 +44,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy";
 
 export type Recording = {
   id: string;
@@ -97,6 +97,8 @@ export type Preview = { epoch: number; items: { url: string; text: string }[] };
 export type ExportedVoice = { variant: string; file: string; checkpoint: string; size: number; url: string; config_url: string };
 
 export type TrainingStatus = "idle" | "downloading" | "preparing" | "training" | "exporting" | "done" | "failed" | "cancelled" | "interrupted";
+
+export type Calibration = { rate: number | null; basis: "history" | "default" | "none"; device: string | null };
 
 export type TrainingState = {
   status: TrainingStatus;
@@ -222,6 +224,7 @@ export const api = {
   downloadBase: (language: string) => request<unknown>(`/api/base/${language}/download`, { method: "POST" }),
   startTraining: () => request<TrainingState>("/api/train", { method: "POST" }),
   resumeTraining: (extraEpochs = 0) => request<TrainingState>("/api/train/resume", json("POST", { extra_epochs: extraEpochs })),
+  calibration: () => request<Calibration>("/api/train/calibration"),
   cancelTraining: () => request<TrainingState>("/api/train/cancel", { method: "POST" }),
   trainingSnapshot: () => request<TrainingState>("/api/train"),
   jobs: () => request<{ items: Job[] }>("/api/jobs"),

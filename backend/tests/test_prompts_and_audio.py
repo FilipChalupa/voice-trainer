@@ -79,3 +79,18 @@ def test_split_sentences_and_prompt_ids():
 def test_builtin_sets_are_usable():
     for lang, sentences in prompts.BUILTIN.items():
         assert len(sentences) >= 25 and len(set(sentences)) == len(sentences), lang
+
+
+def test_inconsistent_recordings_are_flagged():
+    from app.recordings import flag_inconsistent
+
+    def item(speech_db, noise_db):
+        return {"quality": {"speech_db": speech_db, "noise_db": noise_db, "issues": []}}
+
+    items = [item(-20, -70) for _ in range(6)] + [item(-31, -70), item(-20, -45)]
+    flag_inconsistent(items)
+    assert [r["quality"]["issues"] for r in items[:6]] == [[]] * 6
+    assert items[6]["quality"]["issues"] == ["level_mismatch"] and items[7]["quality"]["issues"] == ["noisy"]
+    few = [item(-20, -70), item(-40, -40)]
+    flag_inconsistent(few)  # too few recordings to know what is typical
+    assert few[1]["quality"]["issues"] == []

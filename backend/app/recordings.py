@@ -77,6 +77,31 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+LEVEL_TOLERANCE_DB = 6.0  # louder/quieter than the typical recording by more than this = a different setup
+NOISE_TOLERANCE_DB = 10.0
+
+
+def flag_inconsistent(items: list[dict[str, Any]]) -> None:
+    """Marks recordings whose loudness or background noise differs a lot from the rest of the set.
+
+    Such takes usually come from another microphone, distance or room; a voice trained on them sounds uneven.
+    """
+    levels = [r["quality"].get("speech_db") for r in items if r["quality"].get("speech_db") is not None]
+    noises = [r["quality"].get("noise_db") for r in items if r["quality"].get("noise_db") is not None]
+    if len(levels) < 5:
+        return
+    level_median = sorted(levels)[len(levels) // 2]
+    noise_median = sorted(noises)[len(noises) // 2] if noises else None
+    for r in items:
+        q = r["quality"]
+        issues = list(q["issues"])
+        if q.get("speech_db") is not None and abs(q["speech_db"] - level_median) > LEVEL_TOLERANCE_DB:
+            issues.append("level_mismatch")
+        if noise_median is not None and q.get("noise_db") is not None and q["noise_db"] > max(noise_median + NOISE_TOLERANCE_DB, -55.0):
+            issues.append("noisy")
+        r["quality"] = {**q, "issues": issues}
+
+
 def list_recordings(voice: Voice) -> list[dict[str, Any]]:
     index = load_index(voice)
     items = []
@@ -84,6 +109,7 @@ def list_recordings(voice: Voice) -> list[dict[str, Any]]:
         if (voice.recordings_dir / f"{rid}.wav").exists():
             items.append(describe(voice, rid, entry))
     items.sort(key=lambda r: r["created"])
+    flag_inconsistent(items)
     return items
 
 
@@ -255,7 +281,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy")},
         "rare_letters": rare,
         "duration_histogram": buckets,
         "has_consent": has_consent(voice),

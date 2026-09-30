@@ -52,6 +52,11 @@ export function DatasetCard({ version }: { version: number }) {
               {report.rare_letters.length ? t("ds.rare", { letters: report.rare_letters.join(", ") }) : t("ds.rareNone")}
             </Typography>
           )}
+          {(report.issues.level_mismatch > 0 || report.issues.noisy > 0) && (
+            <Alert severity="warning" variant="outlined">
+              {t("ds.inconsistent", { level: report.issues.level_mismatch, noisy: report.issues.noisy })}
+            </Alert>
+          )}
           <Alert severity={report.ready ? "success" : "warning"} variant="outlined">
             {report.ready ? t("ds.ready") : t("ds.notReady", { what: missing.join(", ") })}
           </Alert>

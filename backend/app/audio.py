@@ -67,6 +67,25 @@ def _speech_bounds(audio: np.ndarray, sr: int, threshold_db: float = -32.0) -> t
     return int(active[0]) * frame, (int(active[-1]) + 1) * frame
 
 
+def _levels(audio: np.ndarray, sr: int) -> tuple[float | None, float | None]:
+    """Loudness of the spoken part and of the pauses (dBFS), to compare recordings with each other."""
+    frame = max(1, sr // 100)
+    n = audio.shape[0]
+    if n < frame * 10:
+        return None, None
+    frames = audio[: (n // frame) * frame].reshape(-1, frame)
+    rms = np.sqrt((frames ** 2).mean(axis=1) + 1e-12)
+    peak = float(rms.max())
+    if peak < 1e-3:
+        return None, None
+    speech = rms[rms > peak * 10 ** (-20 / 20.0)]
+    pauses = rms[rms < peak * 10 ** (-30 / 20.0)]
+    speech_db = round(float(20 * np.log10(speech.mean())), 1)
+    if pauses.size < 20:  # less than 0.2 s of pauses: no reliable noise floor
+        return speech_db, None
+    return speech_db, round(float(20 * np.log10(pauses.mean())), 1)
+
+
 def trim_edges(wav: bytes, keep_ms: int = 200, min_silence_ms: int = 300) -> tuple[bytes, float]:
     """Removes long silence at the start/end, keeping ``keep_ms`` of context around the speech."""
     data, sr = sf.read(io.BytesIO(wav), dtype="float32", always_2d=True)
@@ -110,6 +129,7 @@ def analyze(path, text: str | None = None) -> dict:
     rms = float(np.sqrt(np.mean(audio ** 2))) if n else 0.0
     issues: list[str] = []
     bounds = _speech_bounds(audio, sr, threshold_db=-30.0) if n else None
+    speech_db, noise_db = _levels(audio, sr)
     speech_seconds = 0.0
     if bounds is None:
         issues.append("silent")
@@ -137,6 +157,8 @@ def analyze(path, text: str | None = None) -> dict:
         "quality": {
             "peak": round(peak, 3),
             "rms_db": round(20 * np.log10(rms + 1e-9), 1),
+            "speech_db": speech_db,
+            "noise_db": noise_db,
             "speech_seconds": round(speech_seconds, 2),
             "chars_per_second": round(chars_per_second, 1) if chars_per_second else None,
             "issues": issues,

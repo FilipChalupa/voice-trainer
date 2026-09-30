@@ -9,7 +9,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import IosShareIcon from "@mui/icons-material/IosShare";
-import { api, type BaseItem, type DatasetReport, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
+import { api, type BaseItem, type Calibration, type DatasetReport, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
 const TrainingCharts = lazy(() => import("./TrainingCharts").then((m) => ({ default: m.TrainingCharts })));
@@ -37,7 +37,7 @@ const STATUS_COLOR: Record<TrainingState["status"], "default" | "info" | "succes
   cancelled: "warning",
   interrupted: "warning",
 };
-const STAGES = new Set(["checking_base", "downloading_base", "preparing", "training", "exporting", "done", "failed", "cancelled", "interrupted"]);
+const STAGES = new Set(["checking_base", "downloading_base", "preparing", "training", "stopping", "exporting", "done", "failed", "cancelled", "interrupted"]);
 const FIELDS: { key: keyof TrainingParams; step: number; min: number }[] = [
   { key: "epochs", step: 50, min: 10 },
   { key: "batch_size", step: 2, min: 2 },
@@ -60,6 +60,7 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
   const [extra, setExtra] = useState(200);
   const [report, setReport] = useState<DatasetReport | null>(null);
   const [base, setBase] = useState<BaseItem | null>(null);
+  const [calibration, setCalibration] = useState<Calibration | null>(null);
   const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const prevStatus = useRef(state.status);
@@ -67,6 +68,7 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
   useEffect(() => setParams(voice.training), [voice.id, voice.training]);
   useEffect(() => {
     api.dataset().then(setReport).catch(() => setReport(null));
+    api.calibration().then(setCalibration).catch(() => setCalibration(null));
     api
       .base()
       .then((r) => setBase(r.items.find((b) => b.language === voice.language) ?? null))
@@ -119,6 +121,7 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
   const pct = total > 0 ? Math.min(100, ((current + withinEpoch) / total) * 100) : 0;
   const lastVal = state.validation[state.validation.length - 1];
   const eta = isTraining && state.epoch_seconds ? (state.total_epochs - state.epoch) * state.epoch_seconds : null;
+  const estimate = calibration?.rate && report ? params.epochs * calibration.rate * report.minutes : null;
   const stageText = state.stage_key && STAGES.has(state.stage_key) ? t(`train.stage.${state.stage_key}` as TKey, state.message_params ?? {}) : null;
   const preview = state.previews.find((p) => p.epoch === previewEpoch) ?? state.previews[state.previews.length - 1];
 
@@ -140,6 +143,11 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
               {requirement((report?.minutes ?? 0) >= (report?.min_minutes ?? 5), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }))}
               {base && requirement(base.installed, t("train.req.base", { name: base.name }), t("train.req.baseMissing", { name: base.name, size: base.size_mb }), true)}
               {requirement(gpuOk, t("train.req.gpu"), t("train.req.gpuMissing"))}
+              {calibration && report && report.count > 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ pt: 0.5 }}>
+                  {calibration.basis === "none" ? t("train.estimate.none") : t(`train.estimate.${calibration.basis}` as TKey, { time: duration(estimate ?? 0) })}
+                </Typography>
+              )}
             </Stack>
           )}
 
@@ -170,7 +178,7 @@ export function TrainingCard({ state, log, voice, defaults, system, datasetVersi
                 {t("train.start")}
               </Button>
             ) : (
-              <Button variant="outlined" color="error" size="large" startIcon={<StopIcon />} onClick={() => call(() => api.cancelTraining())} disabled={busy}>
+              <Button variant="outlined" color="error" size="large" startIcon={<StopIcon />} onClick={() => call(() => api.cancelTraining())} disabled={busy || state.stage_key === "stopping"}>
                 {t("train.cancel")}
               </Button>
             )}

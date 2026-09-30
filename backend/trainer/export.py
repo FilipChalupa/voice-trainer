@@ -73,6 +73,9 @@ def main() -> int:
         for ckpt in checkpoints:
             if not ckpt.stem.startswith("last"):
                 ckpt.unlink(missing_ok=True)
+    # onnxruntime's telemetry drops a ":memory:.ses" file into the working directory
+    for junk in job_dir.glob(":memory:*"):
+        junk.unlink(missing_ok=True)
     emit("exported", files=exported)
     return 0
 

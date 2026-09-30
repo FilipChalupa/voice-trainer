@@ -6,7 +6,8 @@ Same CLI as ``python -m piper.train`` (LightningCLI), but:
   * every N epochs a fixed set of sentences is synthesised to WAV so progress can be heard.
 
 Configuration comes from environment variables set by the job manager:
-  VT_CHECKPOINT_DIR, VT_PREVIEW_DIR, VT_PREVIEW_EVERY, VT_ESPEAK_VOICE, VT_TEST_SENTENCES (JSON list)
+  VT_CHECKPOINT_DIR, VT_PREVIEW_DIR, VT_PREVIEW_EVERY, VT_ESPEAK_VOICE, VT_TEST_SENTENCES (JSON list),
+  VT_STOP_FILE (when it appears, the current state is saved to last.ckpt and training ends cleanly)
 """
 from __future__ import annotations
 
@@ -48,12 +49,23 @@ class ProgressCallback(Callback):
         except json.JSONDecodeError:
             self.sentences = []
         self._phonemizer = None
+        self.stop_file = Path(os.environ["VT_STOP_FILE"]) if os.environ.get("VT_STOP_FILE") else None
+        self.checkpoint_dir = Path(os.environ.get("VT_CHECKPOINT_DIR", "checkpoints"))
+        self._stopped = False
 
     # ----- progress -----
     def on_train_start(self, trainer, pl_module) -> None:
         emit("train_start", epoch=int(trainer.current_epoch), max_epochs=int(trainer.max_epochs), batches=int(trainer.num_training_batches), device=str(pl_module.device))
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx) -> None:
+        if self.stop_file is not None and not self._stopped and self.stop_file.exists():
+            # a stop requested by the user: keep the work done since the last validation
+            self._stopped = True
+            self.stop_file.unlink(missing_ok=True)
+            trainer.save_checkpoint(self.checkpoint_dir / "last.ckpt")
+            trainer.should_stop = True
+            emit("stopped", epoch=int(trainer.current_epoch), batch=int(batch_idx) + 1)
+            return
         now = time.time()
         if now - self._last_step_emit < 0.5:
             return

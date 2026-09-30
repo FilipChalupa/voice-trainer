@@ -31,6 +31,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOG_LINES = 600
 RUNNING = ("downloading", "preparing", "training", "exporting")
 FINISHED = ("done", "failed", "cancelled")
+STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clean stop
 SAFE = re.compile(r"^[A-Za-z0-9_.\-=]+$")
 
 
@@ -350,8 +351,21 @@ class JobManager:
         self._cancel.set()
         proc = self._proc
         if proc and proc.poll() is None:
-            proc.terminate()
+            if self.state.get("status") == "training" and self.state.get("job_id"):
+                # ask the trainer to save its state first; it exits by itself, the kill is only a safety net
+                (find_job_dir(self.state["job_id"]) / STOP_FILE).touch()
+                self._update(stage_key="stopping")
+                threading.Thread(target=self._terminate_later, args=(proc, 180), daemon=True).start()
+            else:
+                proc.terminate()
         return self.snapshot()
+
+    @staticmethod
+    def _terminate_later(proc: subprocess.Popen, seconds: float) -> None:
+        try:
+            proc.wait(timeout=seconds)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
 
     def _ensure_base(self, language: str) -> None:
         if base.is_installed(language):
@@ -407,8 +421,10 @@ class JobManager:
             "VT_PREVIEW_EVERY": str(int(job["training"]["preview_every"])),
             "VT_ESPEAK_VOICE": job["espeak_voice"],
             "VT_TEST_SENTENCES": json.dumps(job.get("test_sentences") or [], ensure_ascii=False),
+            "VT_STOP_FILE": str(job_dir / STOP_FILE),
             "TORCH_HOME": str(Path(job["base_checkpoint"]).parent / "torch_hub"),
         })
+        (job_dir / STOP_FILE).unlink(missing_ok=True)
         self._log(f"$ {' '.join(cmd)}")
         self._proc = subprocess.Popen(cmd, cwd=str(job_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         self._pump(self._proc)
@@ -523,6 +539,7 @@ class JobManager:
         kind = ev.get("event")
         if kind == "train_start":
             self._epoch_started = time.time()
+            self._epoch_times = []
             self._update(status="training", stage_key="training", epoch=int(ev.get("epoch", 0)), total_epochs=int(ev.get("max_epochs", 0)), batches=int(ev.get("batches", 0)), device=ev.get("device"), progress={"current": int(ev.get("epoch", 0)), "total": int(ev.get("max_epochs", 0))})
             self._log(f"Training started on {ev.get('device')} at epoch {ev.get('epoch')} of {ev.get('max_epochs')}")
         elif kind == "step":
@@ -531,6 +548,8 @@ class JobManager:
             started = getattr(self, "_epoch_started", None)
             seconds = round(time.time() - started, 2) if started else None
             self._epoch_started = time.time()
+            if seconds:
+                self._epoch_times.append(seconds)
             epoch = int(ev.get("epoch", 0))
             self._update(epoch=epoch, batch=0, metrics={"loss_g": ev.get("loss_g"), "loss_d": ev.get("loss_d")}, epoch_seconds=seconds, progress={"current": epoch, "total": int(ev.get("max_epochs", self.state["total_epochs"]))})
         elif kind == "validation":
@@ -541,6 +560,8 @@ class JobManager:
                 self.state["resumable"] = True
             self._publish("state", {"validation": self.state["validation"], "resumable": True})
             self._log(f"Epoch {entry['epoch']}: val_mel {entry['val_mel']}, val_mos {entry['val_mos']}")
+        elif kind == "stopped":
+            self._log(f"Stopped at epoch {int(ev.get('epoch', 0)) + 1}, batch {ev.get('batch')}; checkpoint saved")
         elif kind == "preview":
             job_id = self.state.get("job_id")
             if job_id:
@@ -553,7 +574,17 @@ class JobManager:
             self._log(f"ERROR: {ev.get('message')}")
 
     def _write_result(self, job_dir: Path, status: str, error: str | None = None) -> None:
-        result = {"status": status, "error": error, "finished_at": now(), "epoch": self.state.get("epoch"), "validation": self.state.get("validation")}
+        times = sorted(getattr(self, "_epoch_times", []))
+        result = {
+            "status": status,
+            "error": error,
+            "finished_at": now(),
+            "epoch": self.state.get("epoch"),
+            "validation": self.state.get("validation"),
+            # typical epoch length of this run, used to estimate the next one
+            "epoch_seconds": times[len(times) // 2] if times else None,
+            "device": self.state.get("device"),
+        }
         (job_dir / "result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
         (job_dir / "train.log").write_text("\n".join(self.log))
 
@@ -565,6 +596,36 @@ manager = JobManager()
 @router.post("/train")
 def start_training():
     return manager.start()
+
+
+DEFAULT_GPU_RATE = 0.2  # seconds per epoch per minute of audio, measured on an RTX 3080 with batch size 16
+
+
+def calibration() -> dict[str, Any]:
+    """How long an epoch takes per minute of audio on this machine, from the most recent finished run."""
+    newest: dict[str, Any] | None = None
+    for v in list_voices():
+        voice = Voice(v["id"])
+        if not voice.jobs_dir.exists():
+            continue
+        for job_dir in voice.jobs_dir.iterdir():
+            job = _read_json(job_dir / "job.json")
+            result = _read_json(job_dir / "result.json")
+            minutes = float(job.get("minutes") or 0)
+            if result.get("epoch_seconds") and minutes > 0 and (newest is None or (result.get("finished_at") or "") > newest["finished_at"]):
+                newest = {"finished_at": result.get("finished_at") or "", "rate": result["epoch_seconds"] / minutes, "device": result.get("device")}
+    if newest:
+        return {"rate": round(newest["rate"], 4), "basis": "history", "device": newest["device"]}
+    from .system import nvidia_smi, torch_cuda
+
+    if nvidia_smi() is not None and torch_cuda():
+        return {"rate": DEFAULT_GPU_RATE, "basis": "default", "device": "cuda"}
+    return {"rate": None, "basis": "none", "device": "cpu"}
+
+
+@router.get("/train/calibration")
+def get_calibration():
+    return calibration()
 
 
 @router.post("/train/resume")
