@@ -63,12 +63,14 @@ export class Recorder {
 
   /**
    * Records until the speaker has finished: stops ~0.6 s after speech ends, at ``maxSeconds`` at the latest,
-   * or when ``stop()`` (returned via onStart) is called. Speech detection adapts to the noise floor measured at the start.
+   * or when ``stop()`` (returned via onStart) is called; the last ``stopTrimMs`` before a manual stop are dropped,
+   * because the key or click that stopped it is audible there. Speech detection adapts to the noise floor
+   * measured at the start.
    */
   async record(
     maxSeconds: number,
     onLevel?: LevelCallback,
-    options: { silenceMs?: number; minSeconds?: number; onStart?: (stop: () => void) => void } = {},
+    options: { silenceMs?: number; minSeconds?: number; stopTrimMs?: number; onStart?: (stop: () => void) => void } = {},
   ): Promise<{ wav: Blob; samples: Float32Array; sampleRate: number }> {
     await this.init(this.deviceId);
     const context = this.context!;
@@ -154,7 +156,9 @@ export class Recorder {
     });
     cleanup();
 
-    const total = Math.min(collected, maxFrames);
+    // a manual stop comes from a key or a click, and the sound of it is on the tape: drop the last moment
+    const stopTrim = stopRequested ? Math.ceil(((options.stopTrimMs ?? 250) / 1000) * context.sampleRate) : 0;
+    const total = Math.max(minFrames, Math.min(collected, maxFrames) - stopTrim);
     const merged = new Float32Array(total);
     let offset = 0;
     for (const chunk of chunks) {
