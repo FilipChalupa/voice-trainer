@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Alert, Box, Card, CardContent, CardHeader, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, Typography } from "@mui/material";
 import DatasetIcon from "@mui/icons-material/Dataset";
+import DownloadIcon from "@mui/icons-material/Download";
 import { api, type DatasetReport } from "../api";
 import { useI18n } from "../i18n";
 
@@ -54,6 +55,16 @@ export function DatasetCard({ version }: { version: number }) {
           <Alert severity={report.ready ? "success" : "warning"} variant="outlined">
             {report.ready ? t("ds.ready") : t("ds.notReady", { what: missing.join(", ") })}
           </Alert>
+          {report.count > 0 && (
+            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Button variant="outlined" size="small" href="/api/dataset/export" download startIcon={<DownloadIcon />}>
+                {t("ds.export")}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                {t("ds.exportHint")}
+              </Typography>
+            </Stack>
+          )}
         </Stack>
       </CardContent>
     </Card>

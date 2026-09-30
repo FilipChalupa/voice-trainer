@@ -119,6 +119,8 @@ const cs = {
   "ds.notReady": "K tréninku chybí: {what}.",
   "ds.needConsent": "souhlas vlastníka hlasu",
   "ds.needMinutes": "alespoň {min} minut nahrávek",
+  "ds.export": "Stáhnout nahrávky s texty (ZIP)",
+  "ds.exportHint": "Formát LJSpeech: složka wavs a metadata.csv, použitelné i pro trénink v jiných nástrojích.",
 
   "train.title": "3. Trénink hlasu",
   "train.subtitle": "Dotrénování Piper (VITS) modelu z existujícího hlasu",
@@ -355,6 +357,8 @@ const en: Record<keyof typeof cs, string> = {
   "ds.notReady": "Missing for training: {what}.",
   "ds.needConsent": "the voice owner's consent",
   "ds.needMinutes": "at least {min} minutes of recordings",
+  "ds.export": "Download recordings with texts (ZIP)",
+  "ds.exportHint": "LJSpeech format: a wavs folder and metadata.csv, usable for training in other tools too.",
 
   "train.title": "3. Voice training",
   "train.subtitle": "Fine-tuning a Piper (VITS) model from an existing voice",

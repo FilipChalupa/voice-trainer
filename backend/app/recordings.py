@@ -1,21 +1,25 @@
-"""Recordings of read sentences: upload, list, edit text, delete/restore, prompts and the dataset report."""
+"""Recordings of read sentences: upload, list, edit text, delete/restore, prompts, the dataset report and export."""
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from . import prompts
 from .audio import analyze, has_speech, normalize_wav, trim_edges
-from .config import MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, load_settings
+from .config import LANGUAGES, MIN_MINUTES, RECOMMENDED_MINUTES, SAMPLE_RATE, TARGET_MINUTES, Voice, load_settings, now, slugify
 from .voices import has_consent, require_voice
 
 router = APIRouter(prefix="/api", tags=["recordings"])
@@ -262,3 +266,74 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
 @router.get("/dataset")
 def get_dataset():
     return dataset_report(require_voice())
+
+
+# ----- export ---------------------------------------------------------------
+EXPORT_README = """{name} - speech dataset exported from Voice Trainer
+
+{count} recordings, {minutes} minutes, {rate} Hz mono 16-bit WAV, language: {language}
+Voice owner: {owner}
+{consent}
+
+Files
+  wavs/<id>.wav         one read sentence per file
+  metadata.csv          LJSpeech format: <id>|<text>|<text>   (Coqui TTS, StyleTTS2, the original Piper preprocess, ...)
+  metadata_piper.csv    <id>.wav|<text>                        (piper.train: --data.csv_path with --data.audio_dir wavs)
+  dataset.json          the same list with durations and quality notes
+  consent.wav           the owner's spoken consent, when it was recorded
+
+The texts are exactly what was read, with punctuation, not normalised.
+This is a recording of a real person's voice. Use it only in ways the owner agreed to.
+"""
+
+
+def _one_line(text: str) -> str:
+    # "|" separates the columns and a line is one recording
+    return " ".join(text.replace("|", " ").split())
+
+
+@router.get("/dataset/export")
+def export_dataset():
+    """The recordings with their transcripts as a ZIP in the LJSpeech layout, for training elsewhere."""
+    voice = require_voice()
+    items = list_recordings(voice)
+    if not items:
+        raise HTTPException(404, {"code": "no_recordings", "message": "There are no recordings to export"})
+    settings = load_settings(voice)
+    slug = slugify(settings["name"])
+    width = max(4, len(str(len(items))))
+    consent = settings.get("consent") if has_consent(voice) else None
+    entries = []
+    fd, tmp = tempfile.mkstemp(prefix="dataset-", suffix=".zip")
+    os.close(fd)
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=3) as zf:
+            for n, r in enumerate(items, start=1):
+                name = f"{slug}_{n:0{width}d}"
+                zf.write(voice.recordings_dir / f"{r['id']}.wav", f"wavs/{name}.wav")
+                entries.append({"id": name, "text": _one_line(r["text"]), "duration": r["duration"], "issues": r["quality"]["issues"], "recorded_at": r["created"]})
+            zf.writestr("metadata.csv", "".join(f"{e['id']}|{e['text']}|{e['text']}\n" for e in entries))
+            zf.writestr("metadata_piper.csv", "".join(f"{e['id']}.wav|{e['text']}\n" for e in entries))
+            if consent:
+                zf.write(voice.consent_file, "consent.wav")
+            minutes = round(total_minutes(items), 2)
+            info = {
+                "name": settings["name"],
+                "owner": settings["owner"],
+                "language": settings["language"],
+                "piper_language": LANGUAGES[settings["language"]]["piper"],
+                "espeak_voice": LANGUAGES[settings["language"]]["espeak"],
+                "sample_rate": SAMPLE_RATE,
+                "count": len(entries),
+                "minutes": minutes,
+                "consent": consent,
+                "exported_at": now(),
+                "recordings": entries,
+            }
+            zf.writestr("dataset.json", json.dumps(info, indent=2, ensure_ascii=False))
+            consent_line = f"Spoken consent recorded {consent.get('at', '')}: \"{consent.get('text', '')}\"" if consent else "Spoken consent: not recorded"
+            zf.writestr("README.txt", EXPORT_README.format(name=settings["name"], count=len(entries), minutes=minutes, rate=SAMPLE_RATE, language=settings["language"], owner=settings["owner"], consent=consent_line))
+    except Exception:
+        os.unlink(tmp)
+        raise
+    return FileResponse(tmp, media_type="application/zip", filename=f"{slug}-dataset.zip", background=BackgroundTask(os.unlink, tmp))

@@ -26,6 +26,8 @@ Only train voices of people who agreed to it.
    after you finish. The sentence is the transcript, so no speech recognition is involved. Each take gets quality
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
    add your own sentences. 5 minutes is the minimum, 30 minutes is recommended, 60 minutes is ideal.
+   The recordings with their texts can be downloaded as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`)
+   to train with other tools.
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
@@ -114,7 +116,7 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | POST / GET / DELETE | `/api/consent` · `/api/consent/audio` | Spoken consent of the voice owner |
 | GET / POST | `/api/prompts` · `/api/prompts/custom` · `/api/prompts/{id}/skip` | Sentences to read |
 | GET / POST / PUT / DELETE | `/api/recordings` · `/api/recordings/{id}` · `…/audio` · `…/restore` | Recordings with transcripts |
-| GET | `/api/dataset` | Dataset report and readiness |
+| GET | `/api/dataset` · `/api/dataset/export` | Dataset report and readiness, recordings + transcripts as a ZIP (LJSpeech layout) |
 | GET / POST | `/api/base` · `/api/base/{lang}/download` | Base checkpoints |
 | POST / GET | `/api/train` · `/api/train/resume` · `/api/train/cancel` · `/api/train/status` (SSE) | Training |
 | GET / POST / DELETE | `/api/jobs` · `/api/jobs/{id}/export` · `/api/jobs/{id}/bundle` · `…/previews/…` | Runs, previews, exported voices |

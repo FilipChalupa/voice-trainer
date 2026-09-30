@@ -82,6 +82,26 @@ def test_silent_upload_is_rejected():
     assert res.status_code == 400 and res.json()["detail"]["code"] == "silent_recording"
 
 
+def test_dataset_export_is_ljspeech_zip():
+    import zipfile
+
+    client.put(f"/api/recordings/{client.get('/api/recordings').json()['items'][0]['id']}", json={"text": "Věta s | oddělovačem."})
+    res = client.get("/api/dataset/export")
+    assert res.status_code == 200 and res.headers["content-type"] == "application/zip"
+    zf = zipfile.ZipFile(io.BytesIO(res.content))
+    names = set(zf.namelist())
+    assert {"metadata.csv", "metadata_piper.csv", "dataset.json", "README.txt", "consent.wav"} <= names
+    wavs = sorted(n for n in names if n.startswith("wavs/"))
+    lines = zf.read("metadata.csv").decode().splitlines()
+    assert len(wavs) == len(lines) == 1
+    uid, text, normalised = lines[0].split("|")
+    assert f"wavs/{uid}.wav" == wavs[0] and text == normalised == "Věta s oddělovačem."
+    assert zf.read("metadata_piper.csv").decode().splitlines()[0] == f"{uid}.wav|Věta s oddělovačem."
+    info = json.loads(zf.read("dataset.json"))
+    assert info["count"] == 1 and info["sample_rate"] == 22050 and info["consent"]["owner"] == info["owner"]
+    assert sf.info(io.BytesIO(zf.read(wavs[0]))).samplerate == 22050
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False
