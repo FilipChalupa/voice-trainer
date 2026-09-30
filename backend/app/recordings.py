@@ -112,7 +112,22 @@ def list_recordings(voice: Voice) -> list[dict[str, Any]]:
             items.append(describe(voice, rid, entry))
     items.sort(key=lambda r: r["created"])
     flag_inconsistent(items)
+    suspicious = _flagged_by_model(voice)
+    for r in items:
+        if r["id"] in suspicious:
+            r["quality"] = {**r["quality"], "issues": [*r["quality"]["issues"], "model_mismatch"]}
     return items
+
+
+def _flagged_by_model(voice: Voice) -> set[str]:
+    """Recordings the trained voice could not reproduce (see check.py); empty until a check has run."""
+    path = voice.dir / "model_check.json"
+    if not path.exists():
+        return set()
+    try:
+        return set(json.loads(path.read_text()).get("flagged") or [])
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return set()
 
 
 def total_minutes(items: list[dict[str, Any]]) -> float:
@@ -289,7 +304,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch")},
         "rare_letters": rare,
         "duration_histogram": buckets,
         "has_consent": has_consent(voice),

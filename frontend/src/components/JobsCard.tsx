@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Box, Button, Card, CardContent, CardHeader, Chip, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
 import HistoryIcon from "@mui/icons-material/History";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
+import { CheckDialog } from "./CheckDialog";
 import { api, type Job } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
@@ -12,6 +15,7 @@ const STATUSES = new Set(["done", "failed", "cancelled", "running", "interrupted
 
 export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Props) {
   const { t } = useI18n();
+  const [checking, setChecking] = useState<Job | null>(null);
   const remove = async (id: string) => {
     try {
       await api.deleteJob(id);
@@ -62,7 +66,14 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
                         "—"
                       )}
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                      {job.exports.length > 0 && (
+                        <Tooltip title={t("jobs.checkTooltip")}>
+                          <IconButton size="small" onClick={() => setChecking(job)}>
+                            <FactCheckIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title={t("jobs.deleteTooltip")}>
                         <span>
                           <IconButton size="small" onClick={() => remove(job.job_id)} disabled={disabled || job.status === "running"}>
@@ -78,6 +89,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
           </Box>
         )}
       </CardContent>
+      <CheckDialog job={checking} onClose={() => setChecking(null)} onError={onError} />
     </Card>
   );
 }

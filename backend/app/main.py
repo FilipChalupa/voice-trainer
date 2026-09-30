@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import base, importer, jobs, recordings, synth, system, voices
+from . import base, check, importer, jobs, recordings, synth, system, voices
 from .config import DATA_DIR
 
 app = FastAPI(title="Voice Trainer", version=system.app_version())
@@ -37,7 +37,7 @@ async def basic_auth(request: Request, call_next):
     return await call_next(request)
 
 
-for module in (voices, recordings, base, jobs, importer, synth, system):
+for module in (voices, recordings, base, jobs, importer, synth, check, system):
     app.include_router(module.router)
 
 

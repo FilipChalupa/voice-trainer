@@ -45,7 +45,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch";
 
 export type Recording = {
   id: string;
@@ -70,6 +70,15 @@ export type TranscribeState = {
   result: { stored: number; skipped: number; count: number; minutes: number } | null;
   error: string | null;
   log: string[];
+};
+
+export type CheckRow = { id: string; text: string; duration: number; distance: number; z: number; flagged: boolean };
+export type CheckState = {
+  status: "idle" | "running" | "done" | "failed";
+  job_id: string | null;
+  progress: { current: number; total: number } | null;
+  error: string | null;
+  result: { job_id: string; variant: string; created_at: string; count: number; median: number; flagged: number; items: CheckRow[] } | null;
 };
 
 export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
@@ -239,6 +248,8 @@ export const api = {
   addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),
   skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
   dataset: () => request<DatasetReport>("/api/dataset"),
+  check: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`),
+  startCheck: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`, { method: "POST" }),
   transcribe: () => request<TranscribeState>("/api/transcribe"),
   startTranscribe: (audio: File) => {
     const form = new FormData();
