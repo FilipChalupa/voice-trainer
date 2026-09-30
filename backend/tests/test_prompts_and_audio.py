@@ -94,3 +94,19 @@ def test_inconsistent_recordings_are_flagged():
     few = [item(-20, -70), item(-40, -40)]
     flag_inconsistent(few)  # too few recordings to know what is typical
     assert few[1]["quality"]["issues"] == []
+
+
+def test_quiet_take_with_room_noise_is_not_cut_off(tmp_path):
+    # a quiet reading (peak 30 %) over an audible room noise floor, with silence-ish edges of 0.4 s
+    sr = 22050
+    rng = np.random.default_rng(1)
+    noise = (0.004 * rng.standard_normal(int(4.0 * sr))).astype(np.float32)  # about -48 dBFS
+    t = np.arange(int(3.2 * sr)) / sr
+    speech = (0.3 * np.sin(2 * np.pi * 180 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 3 * t))).astype(np.float32)
+    audio = noise.copy()
+    audio[int(0.4 * sr) : int(0.4 * sr) + len(speech)] += speech
+    path = tmp_path / "quiet.wav"
+    sf.write(str(path), audio, sr, subtype="PCM_16")
+    q = analyze(path, "Krátká věta na zkoušku hlasitosti.")["quality"]
+    assert "cut_start" not in q["issues"] and "cut_end" not in q["issues"]
+    assert 3.0 <= q["speech_seconds"] <= 3.5

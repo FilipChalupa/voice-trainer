@@ -61,7 +61,11 @@ def _speech_bounds(audio: np.ndarray, sr: int, threshold_db: float = -32.0) -> t
     peak = rms.max()
     if peak < 1e-3:
         return None
-    active = np.where(rms > max(peak * 10 ** (threshold_db / 20.0), 0.004))[0]
+    # relative to the loudest frame, but never inside the room noise: a quiet take with an audible floor would
+    # otherwise count as speech from the first frame to the last
+    noise = float(np.percentile(rms, 10))
+    threshold = max(peak * 10 ** (threshold_db / 20.0), noise * 10 ** (15 / 20.0), 0.004)
+    active = np.where(rms > threshold)[0]
     if active.size == 0:
         return None
     return int(active[0]) * frame, (int(active[-1]) + 1) * frame
@@ -135,9 +139,12 @@ def analyze(path, text: str | None = None) -> dict:
         issues.append("silent")
     else:
         speech_seconds = (bounds[1] - bounds[0]) / sr
-        if bounds[0] / sr < 0.05:
+        # a cut-off take starts or ends with loud speech, so only the loud part (-20 dB) counts here;
+        # breaths and clicks near the edges must not trigger it
+        loud = _speech_bounds(audio, sr, threshold_db=-20.0) or bounds
+        if loud[0] / sr < 0.05:
             issues.append("cut_start")
-        if duration - bounds[1] / sr < 0.05:
+        if duration - loud[1] / sr < 0.05:
             issues.append("cut_end")
     # one full-scale sample is just a normalised recording; real clipping flattens many samples
     if n and float(np.mean(np.abs(audio) >= 0.985)) > 0.0005:
