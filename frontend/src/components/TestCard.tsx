@@ -29,6 +29,7 @@ export function TestCard({ jobs, onError }: Props) {
   const [noiseW, setNoiseW] = useState(0.8);
   const [busy, setBusy] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
+  const [compare, setCompare] = useState(""); // "<job_id>|<file>" of a second voice to hear right after the first
   const counter = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -45,31 +46,47 @@ export function TestCard({ jobs, onError }: Props) {
     if (job && !job.exports.some((e) => e.file === file)) setFile((job.exports.find((e) => e.variant === "last") ?? job.exports[0]).file);
   }, [job, file]);
 
-  const play = (url: string) => {
+  const play = (urls: string[]) => {
     audioRef.current?.pause();
-    const audio = new Audio(url);
+    const [first, ...rest] = urls;
+    if (!first) return;
+    const audio = new Audio(first);
     audioRef.current = audio;
+    audio.onended = () => play(rest); // the samples of a comparison follow each other
     audio.play().catch(() => undefined);
   };
 
+  const variantLabel = (variant: string) => (VARIANTS.has(variant) ? t(`test.variant.${variant}` as TKey) : variant);
+  const runLabel = (r: Job) => new Date(r.created_at).toLocaleString();
+  const compareOptions = runs.flatMap((r) => r.exports.map((e) => ({ value: `${r.job_id}|${e.file}`, label: `${runLabel(r)} · ${variantLabel(e.variant)}` }))).filter((o) => o.value !== `${job?.job_id}|${file}`);
+
   const speak = async () => {
     if (!job || !file || !text.trim()) return;
+    const targets = [{ job, file }];
+    const [cmpJob, cmpFile] = compare.split("|");
+    const other = runs.find((r) => r.job_id === cmpJob);
+    if (other && other.exports.some((e) => e.file === cmpFile)) targets.push({ job: other, file: cmpFile });
     setBusy(true);
     try {
-      const blob = await api.synthesize({ job_id: job.job_id, file, text: text.trim(), length_scale: speed, noise_scale: noise, noise_w_scale: noiseW });
-      const url = URL.createObjectURL(blob);
-      const variant = job.exports.find((e) => e.file === file)?.variant ?? "";
-      counter.current += 1;
-      setSamples((prev) => [{ id: counter.current, url, text: text.trim(), label: `${variantLabel(variant)} · ${speed.toFixed(2)}×` }, ...prev].slice(0, 12));
-      play(url);
+      const urls: string[] = [];
+      const made: Sample[] = [];
+      for (const target of targets) {
+        const blob = await api.synthesize({ job_id: target.job.job_id, file: target.file, text: text.trim(), length_scale: speed, noise_scale: noise, noise_w_scale: noiseW });
+        const url = URL.createObjectURL(blob);
+        const variant = target.job.exports.find((e) => e.file === target.file)?.variant ?? "";
+        counter.current += 1;
+        const who = targets.length > 1 ? `${runLabel(target.job)} · ` : "";
+        made.push({ id: counter.current, url, text: text.trim(), label: `${who}${variantLabel(variant)} · ${speed.toFixed(2)}×` });
+        urls.push(url);
+      }
+      setSamples((prev) => [...made.slice().reverse(), ...prev].slice(0, 12));
+      play(urls);
     } catch (e) {
       onError(errorText(t, e));
     } finally {
       setBusy(false);
     }
   };
-
-  const variantLabel = (variant: string) => (VARIANTS.has(variant) ? t(`test.variant.${variant}` as TKey) : variant);
 
   return (
     <Card>
@@ -94,6 +111,16 @@ export function TestCard({ jobs, onError }: Props) {
                   </MenuItem>
                 ))}
               </TextField>
+              {compareOptions.length > 0 && (
+                <TextField select size="small" label={t("test.compare")} value={compareOptions.some((o) => o.value === compare) ? compare : ""} onChange={(e) => setCompare(e.target.value)} sx={{ minWidth: 260 }} helperText={t("test.compareHint")}>
+                  <MenuItem value="">{t("test.compareNone")}</MenuItem>
+                  {compareOptions.map((o) => (
+                    <MenuItem key={o.value} value={o.value}>
+                      {o.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
             </Stack>
 
             <TextField label={t("test.text")} value={text} onChange={(e) => {
@@ -141,7 +168,7 @@ export function TestCard({ jobs, onError }: Props) {
                 <Stack spacing={0.5}>
                   {samples.map((s) => (
                     <Stack key={s.id} direction="row" spacing={1} alignItems="center">
-                      <IconButton size="small" onClick={() => play(s.url)}>
+                      <IconButton size="small" onClick={() => play([s.url])}>
                         <PlayArrowIcon />
                       </IconButton>
                       <Chip size="small" variant="outlined" label={s.label} />

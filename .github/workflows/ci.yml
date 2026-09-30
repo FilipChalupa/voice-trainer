@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# a newer push to the same branch supersedes the running build
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
@@ -30,8 +35,8 @@ jobs:
       - run: cd frontend && npm ci && npm test -- --run && npm run build
 
   docker-smoke:
+    # runs alongside the unit tests: the image build dominates the wall time even from the layer cache
     runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-build]
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space (the PyTorch image is large)
