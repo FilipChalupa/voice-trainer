@@ -32,7 +32,8 @@ the header shows a running training from every tab. A glossary behind the questi
    (Čapek, Hašek, Němcová from Wikisource; Carroll, Doyle, Baum from Project Gutenberg), any web page or pasted
    text. **Reading in one go** keeps the microphone open and shows the text like a teleprompter: every spoken
    stretch becomes the take of the sentence on screen, Whisper checks each take against its text in the
-   background and mismatches land in the review queue; a live speech-to-noise margin warns when the setup
+   background: a take that reads a neighbouring sentence is relabelled, two takes split by a pause are joined,
+   the rest of the mismatches land in the review queue; a live speech-to-noise margin warns when the setup
    gets worse. 5 minutes is the minimum, 30 minutes is
    recommended, 60 minutes is ideal; the studio shows today's count, the pace and when the next goal is reached.
    The **Data** tab holds the dataset overview and the imports: the recordings with their texts can be downloaded
@@ -52,8 +53,9 @@ the header shows a running training from every tab. A glossary behind the questi
    stops by itself when the validation loss has not improved for a number of validations (patience). Afterwards
    the trained voice can read every training sentence back; takes it cannot reproduce (misread, wrong
    transcript, noise) are listed for a listen and flagged in the recording list.
-4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run or
-   with the untouched base voice (both read the same text back to back), keep a pronunciation list for names and
+4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run, with a run of
+   another voice of the same language (another microphone) or with the untouched base voice (both read the
+   same text back to back), keep a pronunciation list for names and
    abbreviations espeak reads wrong (applied when this app speaks; Piper itself has no dictionary), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
