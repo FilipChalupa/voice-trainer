@@ -12,7 +12,7 @@ from scipy.signal import resample_poly
 
 from .config import SAMPLE_RATE
 
-PEAK_BUCKETS = 64
+PEAK_BUCKETS = 48
 
 
 def _ffmpeg_convert(raw: bytes) -> bytes | None:
@@ -128,7 +128,7 @@ def analyze(path, text: str | None = None) -> dict:
         size = max(1, n // PEAK_BUCKETS)
         usable = audio[: size * PEAK_BUCKETS]
         if usable.size:
-            peaks = np.abs(usable.reshape(-1, size)).max(axis=1).round(3).tolist()
+            peaks = np.abs(usable.reshape(-1, size)).max(axis=1).round(2).tolist()
     peak = float(np.max(np.abs(audio))) if n else 0.0
     rms = float(np.sqrt(np.mean(audio ** 2))) if n else 0.0
     issues: list[str] = []

@@ -126,12 +126,103 @@ class Verifier:
             else:
                 entry["verify"] = {"status": "error", "message": str(ev.get("message"))}
             save_index(voice, index)
+        if ev.get("event") == "result":
+            try:
+                reconcile(voice, task["id"])
+            except Exception:  # noqa: BLE001  (a failed repair leaves the plain verdicts in place)
+                pass
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {"running": self.running(), "ready": self._ready, "pending": len(self._pending), "error": self.error}
 
 
+WINDOW_BEFORE, WINDOW_AFTER = 2, 3
+
+
+def reconcile(voice: Voice, rid: str) -> None:
+    """Repairs the bookkeeping of flow-mode takes around ``rid`` once Whisper has heard them.
+
+    The reader skipped a sentence: the take matches a neighbouring sentence better, so it is relabelled and the
+    sentence left without a take comes up again by itself. The reader paused inside a sentence: two
+    consecutive takes together match one sentence, so they are joined into one. Duplicates of a sentence keep
+    the take Whisper agrees with most.
+    """
+    import numpy as np
+    import soundfile as sf
+
+    from .recordings import _to_trash
+    from .prompts import prompt_id
+    from trainer.verify_worker import similarity
+
+    with _reconcile_lock:
+        index = load_index(voice)
+        order = sorted(index, key=lambda k: index[k].get("created") or "")
+        if rid not in order:
+            return
+        pos = order.index(rid)
+        window = order[max(0, pos - WINDOW_BEFORE) : pos + WINDOW_AFTER + 1]
+        heard = {k: (index[k].get("verify") or {}) for k in window}
+        if any(h.get("status") in (None, "pending") for h in heard.values()):
+            return  # wait until the whole neighbourhood is checked
+        changed = False
+
+        # 1. two consecutive takes that together read one sentence (a pause inside it)
+        for a, b in zip(window, window[1:]):
+            if a not in index or b not in index:
+                continue
+            ha, hb = heard[a], heard[b]
+            if ha.get("status") != "mismatch" or hb.get("status") != "mismatch":
+                continue
+            joined = f"{ha.get('transcript', '')} {hb.get('transcript', '')}"
+            if similarity(index[a]["text"], joined) >= MATCH_THRESHOLD:
+                pa, pb = voice.recordings_dir / f"{a}.wav", voice.recordings_dir / f"{b}.wav"
+                xa, sr = sf.read(str(pa), dtype="float32", always_2d=True)
+                xb, _ = sf.read(str(pb), dtype="float32", always_2d=True)
+                gap = np.zeros((int(sr * 0.15), 1), dtype=np.float32)
+                sf.write(str(pa), np.concatenate([xa, gap, xb]), sr, subtype="PCM_16")
+                index[a]["verify"] = {"status": "ok", "transcript": joined, "similarity": similarity(index[a]["text"], joined), "merged": b}
+                _to_trash(voice, b)
+                index.pop(b, None)
+                heard.pop(b, None)
+                changed = True
+        window = [k for k in window if k in index]
+
+        # 2. a take that reads a neighbouring sentence better than its own
+        texts = {k: index[k]["text"] for k in window}
+        for k in window:
+            h = heard.get(k) or {}
+            if h.get("status") != "mismatch":
+                continue
+            best, best_sim = None, 0.0
+            for other, text in texts.items():
+                sim = similarity(text, h.get("transcript", ""))
+                if sim > best_sim:
+                    best, best_sim = other, sim
+            if best is not None and best != k and best_sim >= MATCH_THRESHOLD:
+                index[k]["text"] = texts[best]
+                index[k]["prompt_id"] = index[best].get("prompt_id") or prompt_id(texts[best])
+                index[k]["verify"] = {"status": "ok", "transcript": h.get("transcript", ""), "similarity": best_sim, "relabelled": True}
+                changed = True
+
+        # 3. two takes of the same sentence: keep the one Whisper agrees with most
+        by_text: dict[str, list[str]] = {}
+        for k in window:
+            by_text.setdefault(index[k]["text"], []).append(k)
+        for keys in by_text.values():
+            if len(keys) < 2:
+                continue
+            keys.sort(key=lambda k: float((index[k].get("verify") or {}).get("similarity") or 0.0), reverse=True)
+            for loser in keys[1:]:
+                _to_trash(voice, loser)
+                index.pop(loser, None)
+                changed = True
+
+        if changed:
+            save_index(voice, index)
+
+
+_reconcile_lock = threading.Lock()
 verifier = Verifier()
 
 

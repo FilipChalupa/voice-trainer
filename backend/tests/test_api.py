@@ -52,7 +52,7 @@ def test_prompts_recording_flow():
     assert prompts["source"] == "builtin" and len(prompts["items"]) == 3
     first = prompts["items"][0]
     up = client.post("/api/recordings", data={"text": first["text"], "prompt_id": first["id"]}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
-    assert up["text"] == first["text"] and 3.0 <= up["duration"] <= 3.7 and len(up["peaks"]) == 64
+    assert up["text"] == first["text"] and 3.0 <= up["duration"] <= 3.7 and len(up["peaks"]) == 48
     listing = client.get("/api/recordings").json()
     assert listing["count"] == 1 and listing["minutes"] > 0.04
     # the recorded prompt is no longer offered

@@ -253,7 +253,7 @@ export const api = {
     return request<VoicesPayload>("/api/consent", { method: "POST", body: form });
   },
   deleteConsent: () => request<VoicesPayload>("/api/consent", { method: "DELETE" }),
-  recordings: () => request<{ items: Recording[]; count: number; minutes: number }>("/api/recordings"),
+  recordings: (opts: { brief?: boolean; ids?: string[] } = {}) => request<{ items: Recording[]; count: number; minutes: number }>(`/api/recordings?${new URLSearchParams({ ...(opts.brief ? { brief: "1" } : {}), ...(opts.ids ? { ids: opts.ids.join(",") } : {}) })}`),
   uploadRecording: (wav: Blob, text: string, promptId: string | null) => {
     const form = new FormData();
     form.append("text", text);
@@ -300,6 +300,8 @@ export const api = {
   cancelTraining: () => request<TrainingState>("/api/train/cancel", { method: "POST" }),
   trainingSnapshot: () => request<TrainingState>("/api/train"),
   jobs: () => request<{ items: Job[] }>("/api/jobs"),
+  allJobs: () => request<{ items: (Job & { voice_name: string })[] }>("/api/jobs?all=1"),
+  suggestTraining: () => request<{ minutes: number; training: Partial<TrainingParams> }>("/api/train/suggest"),
   deleteJob: (id: string) => request<unknown>(`/api/jobs/${id}`, { method: "DELETE" }),
   exportJob: (id: string) => request<TrainingState>(`/api/jobs/${id}/export`, { method: "POST" }),
   synthesize: async (body: { job_id: string; file: string; voice_id?: string; text: string; length_scale: number; noise_scale: number; noise_w_scale: number }) => {

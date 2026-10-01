@@ -271,6 +271,19 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   };
 
   const review = useReview(recordings, refresh, onChanged, onError);
+  const [summaryMismatched, setSummaryMismatched] = useState(0);
+
+  // closing the tab in the middle of a take would lose it without a word
+  useEffect(() => {
+    const guard = (e: BeforeUnloadEvent) => {
+      if (phase === "recording" || phase === "uploading") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [phase]);
 
   const addCustom = async () => {
     try {
@@ -466,7 +479,10 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           setFlowOpen(false);
           await refresh();
           onChanged();
-          if (summary && summary.taken > 0) setInfo(t("flow.summary", { n: summary.taken, minutes: (summary.seconds / 60).toFixed(1), mismatched: summary.mismatched, pending: summary.pending }));
+          if (summary && summary.taken > 0) {
+            setSummaryMismatched(summary.mismatched + summary.pending);
+            setInfo(t("flow.summary", { n: summary.taken, minutes: (summary.seconds / 60).toFixed(1), mismatched: summary.mismatched, pending: summary.pending }));
+          }
         }}
         onError={onError}
       />
@@ -508,7 +524,30 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           </Button>
         }
       />
-      <Snackbar open={!!info} autoHideDuration={4000} onClose={() => setInfo(null)} message={info ?? ""} />
+      <Snackbar
+        open={!!info}
+        autoHideDuration={summaryMismatched > 0 ? 12000 : 4000}
+        onClose={() => {
+          setInfo(null);
+          setSummaryMismatched(0);
+        }}
+        message={info ?? ""}
+        action={
+          summaryMismatched > 0 ? (
+            <Button
+              color="warning"
+              size="small"
+              onClick={() => {
+                setInfo(null);
+                setSummaryMismatched(0);
+                setReviewOpen(true);
+              }}
+            >
+              {t("studio.review", { n: review.queue.length })}
+            </Button>
+          ) : undefined
+        }
+      />
     </Card>
   );
 }

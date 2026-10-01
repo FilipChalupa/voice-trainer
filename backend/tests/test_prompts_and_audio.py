@@ -35,7 +35,7 @@ def test_analyze_flags_text_mismatch_and_clipping(tmp_path):
     wav, _ = normalize_wav(wav_bytes(seconds=1.0, lead=0.3, tail=0.3))
     path.write_bytes(wav)
     ok = analyze(path, "Dobrý den všem.")
-    assert ok["quality"]["issues"] == [] and len(ok["peaks"]) == 64
+    assert ok["quality"]["issues"] == [] and len(ok["peaks"]) == 48
     mismatch = analyze(path, "Tohle je mnohem delší věta, kterou za jednu sekundu rozhodně nikdo nestihne celou přečíst nahlas.")
     assert "text_mismatch" in mismatch["quality"]["issues"]
     loud = tmp_path / "b.wav"

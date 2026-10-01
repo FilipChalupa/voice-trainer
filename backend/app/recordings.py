@@ -140,10 +140,18 @@ def total_minutes(items: list[dict[str, Any]]) -> float:
 
 
 @router.get("/recordings")
-def get_recordings():
+def get_recordings(brief: bool = False, ids: str | None = None):
+    """``brief`` leaves the waveform peaks out (status polling), ``ids`` limits the answer to those recordings;
+    count and minutes always describe the whole set."""
     voice = require_voice()
     items = list_recordings(voice)
-    return {"items": items, "count": len(items), "minutes": round(total_minutes(items), 2)}
+    count, minutes = len(items), round(total_minutes(items), 2)
+    if ids:
+        wanted = set(ids.split(","))
+        items = [r for r in items if r["id"] in wanted]
+    if brief:
+        items = [{**r, "peaks": []} for r in items]
+    return {"items": items, "count": count, "minutes": minutes}
 
 
 def store_recording(voice: Voice, raw: bytes, text: str, prompt_id: str | None = None, source: str | None = None) -> dict[str, Any]:

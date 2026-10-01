@@ -145,3 +145,68 @@ def test_similarity_and_verify_endpoint(monkeypatch, tmp_path):
     verify.verifier.stop()
     for rid in (ok["id"], bad["id"]):
         client.delete(f"/api/recordings/{rid}")
+
+
+FAKE_VERIFY_MAP = '''
+import json, sys
+mapping = json.load(open(sys.argv[1]))
+print(json.dumps({"event": "ready", "device": "cpu"}), flush=True)
+for line in sys.stdin:
+    req = json.loads(line)
+    heard = mapping.get(req["text"], req["text"])
+    from trainer.verify_worker import similarity
+    print(json.dumps({"event": "result", "id": req["id"], "transcript": heard, "similarity": similarity(req["text"], heard)}, ensure_ascii=False), flush=True)
+'''
+
+
+def _upload(text):
+    return client.post("/api/recordings", data={"text": text}, files={"file": ("a.wav", wav_bytes(seconds=1.0), "audio/wav")}).json()
+
+
+def _wait_settled(ids, timeout=15):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        items = client.get("/api/recordings").json()["items"]
+        present = [r for r in items if r["id"] in ids]
+        if all((r["verify"] or {}).get("status") in ("ok", "mismatch", "error") for r in present):
+            time.sleep(0.3)  # let the reconciliation of the last verdict finish
+            return client.get("/api/recordings").json()["items"]
+        time.sleep(0.1)
+    raise AssertionError("verification did not settle")
+
+
+def test_reconcile_relabels_skipped_sentence_and_merges_split_take(monkeypatch, tmp_path):
+    t1, t2, t3 = "První věta o počasí venku.", "Druhá věta o obědě v poledne.", "Třetí věta o večerním programu."
+    long = "Dlouhá věta, která má dvě části, a čtenář se uprostřed nadechl."
+    nxt = "Věta hned za tou dlouhou."
+    # the reader skipped t1 (every take reads the next sentence), then paused inside the long sentence
+    mapping = {t1: t2, t2: t3, long: "Dlouhá věta, která má dvě části,", nxt: "a čtenář se uprostřed nadechl."}
+    (tmp_path / "map.json").write_text(json.dumps(mapping, ensure_ascii=False))
+    script = tmp_path / "fake_verify_map.py"
+    script.write_text(FAKE_VERIFY_MAP)
+    monkeypatch.setattr(verify, "worker_command", lambda: [verify.sys.executable, str(script), str(tmp_path / "map.json")])
+    verify.verifier.stop()
+    before = {r["id"] for r in client.get("/api/recordings").json()["items"]}
+    takes = [_upload(x) for x in (t1, t2, t3)]
+    for tk in takes:
+        time.sleep(0.02)
+        client.post(f"/api/recordings/{tk['id']}/verify")
+    items = _wait_settled([tk["id"] for tk in takes])
+    mine = [r for r in items if r["id"] not in before]
+    texts = sorted(r["text"] for r in mine)
+    # t1 is no longer claimed by any take, t2 and t3 have one take each
+    assert texts == sorted([t2, t3]), texts
+    assert all((r["verify"] or {}).get("status") == "ok" for r in mine)
+
+    split = [_upload(long), _upload(nxt)]
+    for tk in split:
+        time.sleep(0.02)
+        client.post(f"/api/recordings/{tk['id']}/verify")
+    items = _wait_settled([tk["id"] for tk in split])
+    merged = [r for r in items if r["id"] == split[0]["id"]]
+    assert merged and merged[0]["text"] == long and merged[0]["verify"]["status"] == "ok" and merged[0]["duration"] > 2.0
+    assert not any(r["id"] == split[1]["id"] for r in items)
+    verify.verifier.stop()
+    for r in client.get("/api/recordings").json()["items"]:
+        if r["id"] not in before:
+            client.delete(f"/api/recordings/{r['id']}")

@@ -35,6 +35,7 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
   const [busy, setBusy] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [compare, setCompare] = useState(""); // "<job_id>|<file>" of a second voice to hear right after the first
+  const [others, setOthers] = useState<(Job & { voice_name: string })[]>([]); // finished runs of the other voices
   const counter = useRef(0);
 
   const job = runs.find((j) => j.job_id === jobId) ?? runs[0];
@@ -42,6 +43,13 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
   useEffect(() => {
     if (job && job.job_id !== jobId) setJobId(job.job_id);
   }, [job, jobId]);
+  useEffect(() => {
+    api
+      .allJobs()
+      .then((r) => setOthers(r.items.filter((j) => j.exports.length > 0 && j.voice_id !== voice.id && j.language === voice.language)))
+      .catch(() => setOthers([]));
+  }, [voice.id, voice.language, jobs.length]);
+
   // the sample text follows the language of the voice, not the language of the interface
   useEffect(() => {
     if (job && !edited) setText(DEFAULT_TEXT[job.language] ?? DEFAULT_TEXT.en);
@@ -58,6 +66,8 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
     // the untouched base voice first: it shows what fine-tuning changed
     ...(job && baseVoiceName ? [{ value: `base|${job.language}`, label: t("test.baseVoice", { name: baseVoiceName }) }] : []),
     ...runs.flatMap((r) => r.exports.map((e) => ({ value: `${r.job_id}|${e.file}`, label: `${runLabel(r)} · ${variantLabel(e.variant)}` }))),
+    // other voices of the same language (another microphone, another session) can be heard back to back too
+    ...others.flatMap((r) => r.exports.map((e) => ({ value: `${r.job_id}|${e.file}`, label: `${r.voice_name} · ${runLabel(r)} · ${variantLabel(e.variant)}` }))),
   ].filter((o) => o.value !== `${job?.job_id}|${file}`);
 
   const speak = async () => {
@@ -66,8 +76,10 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
     const targets: Target[] = [{ jobId: job.job_id, file, label: variantOf(job, file) }];
     const [cmpJob, cmpFile] = compare.split("|");
     const other = runs.find((r) => r.job_id === cmpJob);
+    const foreign = others.find((r) => r.job_id === cmpJob);
     if (cmpJob === "base" && cmpFile === job.language && baseVoiceName) targets.push({ jobId: "base", file: job.language, label: t("test.baseVoice", { name: baseVoiceName }), voiceId: job.voice_id ?? undefined });
     else if (other && other.exports.some((e) => e.file === cmpFile)) targets.push({ jobId: other.job_id, file: cmpFile, label: `${runLabel(other)} · ${variantOf(other, cmpFile)}` });
+    else if (foreign && foreign.exports.some((e) => e.file === cmpFile)) targets.push({ jobId: foreign.job_id, file: cmpFile, label: `${foreign.voice_name} · ${runLabel(foreign)} · ${variantOf(foreign, cmpFile)}` });
     if (targets.length > 1) targets[0].label = `${runLabel(job)} · ${targets[0].label}`;
     setBusy(true);
     try {

@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 
 from . import base
-from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, apply_lexicon, current_voice, load_settings, now, slugify
+from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, apply_lexicon, current_voice, list_voices, load_settings, now, slugify
 from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
 from .runs import FINISHED, SAFE, calibration, find_job_dir, list_exports, list_jobs, list_previews, prune_jobs, read_json
@@ -510,6 +510,25 @@ def get_calibration():
     return calibration()
 
 
+def suggest_training(minutes: float) -> dict[str, Any]:
+    """Starting points by the amount of audio: a small set needs more passes and more patience (its validation
+    is noisy), a large one converges in fewer epochs. Rules of thumb from fine-tuning runs, not a law."""
+    if minutes < 10:
+        return {"epochs": 800, "validation_every": 10, "preview_every": 50, "patience": 12}
+    if minutes < 30:
+        return {"epochs": 600, "validation_every": 10, "preview_every": 50, "patience": 10}
+    if minutes < 60:
+        return {"epochs": 500, "validation_every": 10, "preview_every": 50, "patience": 8}
+    return {"epochs": 400, "validation_every": 10, "preview_every": 50, "patience": 6}
+
+
+@router.get("/train/suggest")
+def get_suggest():
+    voice = require_voice()
+    minutes = total_minutes(list_recordings(voice))
+    return {"minutes": round(minutes, 1), "training": suggest_training(minutes)}
+
+
 @router.post("/train/resume")
 async def resume_training(request: Request):
     body: dict[str, Any] = {}
@@ -557,7 +576,14 @@ def _sse(event: str, data: Any) -> str:
 
 
 @router.get("/jobs")
-def get_jobs():
+def get_jobs(all: bool = False):
+    """Runs of the current voice, or with ``all`` the finished runs of every voice (to compare voices)."""
+    if all:
+        items = []
+        for entry in list_voices():
+            for job in list_jobs(Voice(entry["id"])):
+                items.append({**job, "voice_name": entry["name"]})
+        return {"items": items}
     voice = current_voice()
     return {"items": list_jobs(voice) if voice else []}
 

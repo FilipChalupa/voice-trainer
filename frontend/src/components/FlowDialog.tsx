@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Chip, Dialog, DialogContent, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Chip, Dialog, DialogContent, IconButton, Slider, Stack, Tooltip, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -45,6 +45,13 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   const [snr, setSnr] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [verifyOn, setVerifyOn] = useState(true);
+  const [silenceMs, setSilenceMs] = useState(() => {
+    try {
+      return Number(localStorage.getItem("voice-trainer.flow.silence") ?? 700) || 700;
+    } catch {
+      return 700;
+    }
+  });
   const queueRef = useRef<Prompt[]>([]);
   const phaseRef = useRef<Phase>("countdown");
   const stopRef = useRef<(() => void) | null>(null);
@@ -93,13 +100,42 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   const start = useCallback(async () => {
     try {
       await recorder.init(deviceId || undefined, agc);
-      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs: 700, minSeconds: 0.8, maxSeconds, prerollMs: 300 });
+      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs, minSeconds: 0.8, maxSeconds, prerollMs: 300 });
       setPhase("listening");
     } catch (e) {
       onError(errorText(t, e));
       setPhase("paused");
     }
-  }, [agc, deviceId, handleSegment, maxSeconds, onError, recorder, t]);
+  }, [agc, deviceId, handleSegment, maxSeconds, onError, recorder, silenceMs, t]);
+
+  // a changed pause length takes effect at once: the capture restarts with the new setting
+  const changeSilence = (value: number) => {
+    setSilenceMs(value);
+    try {
+      localStorage.setItem("voice-trainer.flow.silence", String(value));
+    } catch {
+      /* private mode */
+    }
+  };
+  useEffect(() => {
+    if (phase !== "listening") return;
+    stopCapture();
+    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [silenceMs]);
+
+  // leaving the page while the microphone runs or a take is still uploading would lose it
+  useEffect(() => {
+    if (!open) return;
+    const guard = (e: BeforeUnloadEvent) => {
+      if (phase === "listening" || uploading) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [open, phase, uploading]);
 
   const stopCapture = useCallback(() => {
     stopRef.current?.();
@@ -165,7 +201,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
     let mismatched = 0;
     let pending = 0;
     try {
-      const items = (await api.recordings()).items;
+      const items = (await api.recordings({ brief: true, ids: taken.map((tk) => tk.rec.id) })).items;
       for (const tk of taken) {
         const rec = items.find((r) => r.id === tk.rec.id);
         if (rec?.verify?.status === "mismatch") mismatched += 1;
@@ -251,6 +287,15 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
         )}
 
         <Box sx={{ maxWidth: 1100, width: "100%", mx: "auto" }}>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+              {t("flow.pauseLength", { s: (silenceMs / 1000).toFixed(1) })}
+            </Typography>
+            <Slider size="small" min={500} max={1500} step={100} value={silenceMs} onChange={(_, v) => setSilenceMs(v as number)} onChangeCommitted={(_, v) => changeSilence(v as number)} sx={{ maxWidth: 260 }} />
+            <Typography variant="caption" color="text.secondary">
+              {t("flow.pauseHint")}
+            </Typography>
+          </Stack>
           <LevelMeter level={Math.min(1, level.rms * 6)} peak={level.peak} />
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
             {phase === "listening" ? (
@@ -286,7 +331,7 @@ function VerdictRow({ ids }: { ids: string[] }) {
   const [items, setItems] = useState<Recording[]>([]);
   useEffect(() => {
     let alive = true;
-    const poll = () => api.recordings().then((r) => alive && setItems(r.items.filter((x) => ids.includes(x.id)))).catch(() => undefined);
+    const poll = () => api.recordings({ brief: true, ids }).then((r) => alive && setItems(r.items)).catch(() => undefined);
     poll();
     const timer = setInterval(poll, 2000);
     return () => {

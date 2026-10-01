@@ -177,6 +177,11 @@ export function TrainingCard({ state, log, voice, report, defaults, system, onVo
                 <Button size="small" onClick={() => setParams({ ...defaults })}>
                   {t("train.reset")}
                 </Button>
+                <Tooltip title={t("train.suggestHint")}>
+                  <Button size="small" onClick={() => api.suggestTraining().then((r) => setParams((p) => ({ ...p, ...r.training }))).catch((e) => onError(errorText(t, e)))} disabled={!report || report.count === 0}>
+                    {t("train.suggest", { minutes: (report?.minutes ?? 0).toFixed(0) })}
+                  </Button>
+                </Tooltip>
               </Stack>
             </AccordionDetails>
           </Accordion>
