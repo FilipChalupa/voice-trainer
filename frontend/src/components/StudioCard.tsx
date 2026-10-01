@@ -76,6 +76,21 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [customOpen, setCustomOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [micCheckOpen, setMicCheckOpen] = useState(false);
+  // a new session (no take in the last two hours) suggests the microphone test first, once per browser tab
+  const [micChecked, setMicChecked] = useState(() => {
+    try {
+      return sessionStorage.getItem("voice-trainer.mic-checked") === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      if (micChecked) sessionStorage.setItem("voice-trainer.mic-checked", "1");
+    } catch {
+      /* private mode */
+    }
+  }, [micChecked]);
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
   const [paragraphsOpen, setParagraphsOpen] = useState(false);
@@ -271,6 +286,8 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   };
 
   const review = useReview(recordings, refresh, onChanged, onError);
+  const lastTake = recordings.length ? new Date(recordings[recordings.length - 1].created).getTime() : 0;
+  const sessionStart = prompts !== null && Date.now() - lastTake > 2 * 60 * 60 * 1000;
   const [summaryMismatched, setSummaryMismatched] = useState(0);
 
   // closing the tab in the middle of a take would lose it without a word
@@ -310,6 +327,24 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       />
       <CardContent>
         <Stack spacing={2}>
+          {sessionStart && !micChecked && (
+            <Alert
+              severity="info"
+              variant="outlined"
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Button size="small" variant="contained" startIcon={<SettingsVoiceIcon />} onClick={() => setMicCheckOpen(true)} disabled={disabled || busy}>
+                    {t("studio.micCheck")}
+                  </Button>
+                  <Button size="small" onClick={() => setMicChecked(true)}>
+                    {t("studio.sessionSkip")}
+                  </Button>
+                </Stack>
+              }
+            >
+              {t("studio.sessionStart")}
+            </Alert>
+          )}
           <Box>
             <Box sx={{ position: "relative" }}>
               <LinearProgress variant="determinate" value={progress} sx={{ height: 10, borderRadius: 5 }} color={totalMinutes >= minutes.recommended ? "success" : "primary"} />
@@ -495,7 +530,17 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
         }}
         onError={onError}
       />
-      <MicCheckDialog open={micCheckOpen} recorder={recorderRef.current} deviceId={deviceId} agc={agc} sentence={text || t("mic.fallbackSentence")} recordings={recordings} onClose={() => setMicCheckOpen(false)} onError={onError} />
+      <MicCheckDialog
+        open={micCheckOpen}
+        recorder={recorderRef.current}
+        deviceId={deviceId}
+        agc={agc}
+        sentence={text || t("mic.fallbackSentence")}
+        recordings={recordings}
+        onClose={() => setMicCheckOpen(false)}
+        onDone={() => setMicChecked(true)}
+        onError={onError}
+      />
       <ReviewDialog open={reviewOpen} queue={review.queue} onClose={() => setReviewOpen(false)} onApprove={review.approve} onDelete={remove} onRedo={review.redo} />
 
       <Dialog open={customOpen} onClose={() => setCustomOpen(false)} fullWidth maxWidth="sm">

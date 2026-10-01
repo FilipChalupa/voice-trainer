@@ -6,7 +6,7 @@ import { useI18n } from "../i18n";
 import { Recorder } from "../lib/recorder";
 import { LevelMeter } from "./LevelMeter";
 
-type Props = { open: boolean; recorder: Recorder; deviceId: string; agc: boolean; sentence: string; recordings: Recording[]; onClose: () => void; onError: (message: string) => void };
+type Props = { open: boolean; recorder: Recorder; deviceId: string; agc: boolean; sentence: string; recordings: Recording[]; onClose: () => void; onDone?: () => void; onError: (message: string) => void };
 type Step = "intro" | "silence" | "speech" | "result";
 type Result = { noiseDb: number; speechDb: number; peak: number; snr: number; previousDb: number | null };
 
@@ -34,7 +34,7 @@ function measure(samples: Float32Array): { rms: number; peak: number; speechRms:
   return { rms: total, peak, speechRms };
 }
 
-export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, recordings, onClose, onError }: Props) {
+export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, recordings, onClose, onDone, onError }: Props) {
   const { t } = useI18n();
   const [step, setStep] = useState<Step>("intro");
   const [level, setLevel] = useState(0);
@@ -70,6 +70,7 @@ export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, record
         previousDb: previous.length >= 5 ? previous[Math.floor(previous.length / 2)] : null,
       });
       setStep("result");
+      onDone?.();
     } catch (e) {
       onError(String(e));
       setStep("intro");
