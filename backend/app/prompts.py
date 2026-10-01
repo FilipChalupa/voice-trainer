@@ -282,18 +282,40 @@ def split_sentences(text: str) -> list[str]:
     return out
 
 
-def add_custom(voice: Voice, text: str) -> int:
-    """Queues the sentences of ``text`` (in order) before everything else, so they are read next."""
+def add_custom(voice: Voice, text: str, source: str | None = None) -> int:
+    """Queues the sentences of ``text`` (in order) before everything else, so they are read next. ``source``
+    names where they came from (a paragraph, a chapter, pasted text) so a batch can be removed again."""
     existing = load_custom(voice)
     ids = {p["id"] for p in existing}
     fresh = []
     for s in split_sentences(text):
         pid = prompt_id(s)
         if pid not in ids:
-            fresh.append({"id": pid, "text": s})
+            fresh.append({"id": pid, "text": s, **({"source": source} if source else {})})
             ids.add(pid)
     custom_path(voice).write_text(json.dumps(fresh + existing, ensure_ascii=False, indent=1))
     return len(fresh)
+
+
+def custom_batches(voice: Voice, recorded_ids: set[str]) -> list[dict[str, Any]]:
+    """The queued custom sentences grouped by where they came from, with how many still wait to be read."""
+    groups: dict[str, dict[str, Any]] = {}
+    for p in load_custom(voice):
+        key = p.get("source") or ""
+        g = groups.setdefault(key, {"source": key, "total": 0, "remaining": 0})
+        g["total"] += 1
+        if p["id"] not in recorded_ids:
+            g["remaining"] += 1
+    return list(groups.values())
+
+
+def remove_custom(voice: Voice, source: str | None, recorded_ids: set[str]) -> int:
+    """Drops the unread custom sentences of one source (``None`` = of every source). Recorded ones stay, their
+    takes keep pointing at them."""
+    existing = load_custom(voice)
+    kept = [p for p in existing if p["id"] in recorded_ids or (source is not None and (p.get("source") or "") != source)]
+    custom_path(voice).write_text(json.dumps(kept, ensure_ascii=False, indent=1))
+    return len(existing) - len(kept)
 
 
 def all_prompts(voice: Voice) -> tuple[list[dict[str, str]], str]:
@@ -321,8 +343,10 @@ def queue_front(voice: Voice, text: str) -> str:
     """Puts one sentence at the very front of the reading queue (added as a custom prompt if it is not one yet,
     moved if it is) and clears a skip of it. Returns the prompt id."""
     pid = prompt_id(text)
-    existing = [p for p in load_custom(voice) if p["id"] != pid]
-    custom_path(voice).write_text(json.dumps([{"id": pid, "text": text}] + existing, ensure_ascii=False, indent=1))
+    current = load_custom(voice)
+    mine = next((p for p in current if p["id"] == pid), {"id": pid, "text": text})
+    existing = [p for p in current if p["id"] != pid]
+    custom_path(voice).write_text(json.dumps([mine] + existing, ensure_ascii=False, indent=1))
     settings = load_settings(voice)
     skipped = [x for x in (settings.get("skipped_prompts") or []) if x != pid]
     if len(skipped) != len(settings.get("skipped_prompts") or []):

@@ -525,7 +525,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
         open={paragraphsOpen}
         onClose={() => setParagraphsOpen(false)}
         onQueued={async (n) => {
-          setInfo(t("studio.customAdded", { n }));
+          if (n > 0) setInfo(t("studio.customAdded", { n }));
           await refresh();
         }}
         onError={onError}

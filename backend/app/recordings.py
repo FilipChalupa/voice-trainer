@@ -303,10 +303,25 @@ def get_prompts(count: int = 5):
     return prompts.next_prompts(voice, recorded, max(1, min(50, count)))
 
 
+@router.get("/prompts/custom")
+def get_custom_prompts():
+    voice = require_voice()
+    recorded = {e.get("prompt_id") for e in load_index(voice).values()}
+    return {"batches": prompts.custom_batches(voice, recorded)}
+
+
+@router.delete("/prompts/custom")
+def delete_custom_prompts(source: str | None = None):
+    """Removes queued custom sentences: those of one source, or all of them without ``source``."""
+    voice = require_voice()
+    recorded = {e.get("prompt_id") for e in load_index(voice).values()}
+    return {"removed": prompts.remove_custom(voice, source, recorded)}
+
+
 @router.post("/prompts/custom")
 async def post_custom_prompts(body: dict[str, Any]):
     voice = require_voice()
-    added = prompts.add_custom(voice, str(body.get("text", "")))
+    added = prompts.add_custom(voice, str(body.get("text", "")), source=str(body.get("source") or "") or None)
     if added == 0:
         raise HTTPException(400, {"code": "no_sentences", "message": "No new sentences found in the text"})
     return {"added": added}

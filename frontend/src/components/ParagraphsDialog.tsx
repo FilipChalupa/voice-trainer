@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, List, ListItem, ListItemText, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemText, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { api, type Book, type Paragraph } from "../api";
 import { errorText, useI18n } from "../i18n";
@@ -15,12 +16,28 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
   const [chapters, setChapters] = useState<Record<string, Chapter[] | "loading">>({});
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
+  const [batches, setBatches] = useState<{ source: string; total: number; remaining: number }[]>([]);
 
+  const loadBatches = () => api.customBatches().then((r) => setBatches(r.batches.filter((b) => b.remaining > 0))).catch(() => setBatches([]));
   useEffect(() => {
     if (!open) return;
     api.paragraphs().then((r) => setItems(r.items)).catch(() => setItems([]));
     api.library().then((r) => setBooks(r.items)).catch(() => setBooks([]));
+    loadBatches();
   }, [open]);
+
+  const removeBatch = async (src: string | null) => {
+    setBusy(true);
+    try {
+      await api.removeCustom(src);
+      await loadBatches();
+      onQueued(0);
+    } catch (e) {
+      onError(errorText(t, e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = async (fn: () => Promise<{ added: number }>) => {
     setBusy(true);
@@ -60,8 +77,38 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           {t("para.help")}
         </Typography>
+        {batches.length > 0 && (
+          <Stack spacing={0.5} sx={{ mb: 2, p: 1.5, border: 1, borderColor: "divider", borderRadius: 2 }}>
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="subtitle2" sx={{ flex: 1 }}>
+                {t("para.queued")}
+              </Typography>
+              <Button size="small" color="error" onClick={() => removeBatch(null)} disabled={busy}>
+                {t("para.removeAll")}
+              </Button>
+            </Stack>
+            {batches.map((b) => (
+              <Stack key={b.source} direction="row" alignItems="center" spacing={1}>
+                <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                  {b.source || t("para.unnamed")}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {t("para.remaining", { n: b.remaining })}
+                </Typography>
+                <Tooltip title={t("para.remove")}>
+                  <IconButton size="small" onClick={() => removeBatch(b.source)} disabled={busy}>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+          {t("para.totals", { n: items.reduce((a, p) => a + p.sentences, 0), done: items.reduce((a, p) => a + p.recorded, 0) })}
+        </Typography>
         <List dense disablePadding>
-          {items.map((p) => (
+          {[...items].sort((a, b) => Number(a.recorded >= a.sentences) - Number(b.recorded >= b.sentences)).map((p) => (
             <ListItem
               key={p.id}
               disableGutters

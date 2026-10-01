@@ -273,6 +273,8 @@ export const api = {
   verifyRecording: (id: string) => request<{ status: string }>(`/api/recordings/${id}/verify`, { method: "POST" }),
   paragraphs: () => request<{ items: Paragraph[] }>("/api/paragraphs"),
   queueParagraph: (id: string) => request<{ added: number; sentences: number }>(`/api/paragraphs/${id}/queue`, { method: "POST" }),
+  customBatches: () => request<{ batches: { source: string; total: number; remaining: number }[] }>("/api/prompts/custom"),
+  removeCustom: (source: string | null) => request<{ removed: number }>(`/api/prompts/custom${source === null ? "" : `?source=${encodeURIComponent(source)}`}`, { method: "DELETE" }),
   addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),
   skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
   dataset: () => request<DatasetReport>("/api/dataset"),

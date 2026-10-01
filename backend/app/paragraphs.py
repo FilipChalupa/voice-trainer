@@ -36,7 +36,7 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
         {
             "id": "recept",
             "title": "Recept na polévku",
-            "text": "Nejdřív si nakrájejte cibuli a osmahněte ji na másle dozlatova. Přidejte tři mrkve, dva brambory a kousek celeru. Zalijte litrem vývaru a vařte dvacet minut, dokud zelenina nezměkne. Potom polévku rozmixujte a dochuťte solí, pepřem a špetkou muškátového oříšku. Podávejte s opečeným chlebem. Kdo má rád, může přidat lžíci smetany.",
+            "text": "Nejdřív si nakrájejte cibuli a osmahněte ji na másle dozlatova. Přidejte tři mrkve, dva brambory a kousek celeru. Zalijte literm vývaru a vařte dvacet minut, dokud zelenina nezměkne. Potom polévku rozmixujte a dochuťte solí, pepřem a špetkou muškátového oříšku. Podávejte s opečeným chlebem. Kdo má rád, může přidat lžíci smetany.",
         },
         {
             "id": "vylet",
@@ -68,6 +68,66 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "title": "Pohádka na dobrou noc",
             "text": "Za sedmero horami stál malý mlýn, ve kterém bydlel mlynář se svou dcerou Aničkou. Každé ráno vstávala první a krmila slepice, kachny a starého osla. Jednoho dne našla u řeky lesklý kámen, který v noci svítil jako hvězda. Když ho vzala do ruky, uslyšela tichý hlas. Kdo mě najde, tomu splním jedno přání. Anička se zamyslela a přála si, aby už nikdo v celém kraji neměl hlad.",
         },
+        {
+            "id": "nakup",
+            "title": "Nákupní seznam a plán dne",
+            "text": "Na nákupním seznamu máte mléko, chléb, vejce, máslo a dvě kila brambor. Přidal jsem ještě kávu, protože včera došla. Obchod zavírá v osm večer, dnes je otevřeno déle. Odpoledne ve tři máte zubaře, cesta trvá dvacet minut. Do kalendáře jsem zapsal také narozeniny tety Marie, jsou příští úterý. Prádlo v sušičce bude hotové za půl hodiny. Chcete, abych vám připomněl, až bude? Teplota v dětském pokoji klesla na devatenáct stupňů, mám přitopit? A ještě jedna věc: baterie v senzoru na balkoně je skoro vybitá.",
+        },
+        {
+            "id": "tyden",
+            "title": "Týdenní předpověď",
+            "text": "V pondělí bude polojasno s teplotami kolem patnácti stupňů. Úterý přinese déšť, místy i bouřky, a silný vítr od západu. Ve středu se vyjasní, ale ráno hrozí přízemní mrazíky. Čtvrtek a pátek budou slunečné, odpoledne až dvacet dva stupňů. O víkendu se oteplí ještě víc, sobota bude nejteplejší den týdne. Neděle večer se od severu přiblíží studená fronta. Kdy plánujete výlet? Doporučil bych čtvrtek nebo sobotu, v úterý si raději vezměte deštník.",
+        },
+        {
+            "id": "pribeh2",
+            "title": "Příběh z vlaku",
+            "text": "Vlak se rozjel s mírným zpožděním a Petra si konečně sedla k oknu. Venku se míhaly pole, remízky a občas nějaká vesnice s kostelem. Naproti ní seděl starší pán s novinami a každou chvíli něco zamručel. V Kolíně přistoupila paní se dvěma dětmi a kufrem, který se nevešel do police. Petra jim pomohla a dala se s nimi do řeči. Ukázalo se, že jedou na stejnou svatbu jako ona. Jaká je pravděpodobnost, že se tohle stane? Smáli se tomu až do Pardubic. Když vystupovali, pán s novinami se poprvé usmál a popřál jim hezkou oslavu.",
+        },
+        {
+            "id": "navod",
+            "title": "Návod k zavařování",
+            "text": "Sklenice nejdřív důkladně umyjte a nechte je vysušit dnem vzhůru. Ovoce omyjte, odpeckujte a nakrájejte na stejně velké kousky. Na kilogram ovoce počítejte zhruba čtyři sta gramů cukru. Směs přiveďte k varu a za stálého míchání vařte deset minut. Horkou marmeládu plňte až po okraj a sklenice ihned uzavřete. Potom je otočte víčkem dolů a nechte je deset minut stát. Víčka by se měla po vychladnutí prohnout dovnitř. Pokud některé víčko cvaká, sklenici uložte do lednice a snězte ji první. Takhle vydrží zavařenina klidně rok.",
+        },
+        {
+            "id": "sport",
+            "title": "Sportovní zpráva",
+            "text": "Domácí vstoupili do zápasu aktivně a už v páté minutě vedli jednu nula. Hosté vyrovnali těsně před přestávkou z pokutového kopu. Druhý poločas začal opatrně, obě mužstva si dávala pozor na chyby. Rozhodující moment přišel v osmdesáté třetí minutě, kdy střídající útočník zakončil rychlý protiútok. Konečný výsledek dvě jedna znamená pro domácí první výhru po čtyřech zápasech. Trenér po utkání chválil obranu i diváky, kterých přišlo přes šest tisíc. Příští sobotu čeká tým zápas venku, výkop je v půl šesté.",
+        },
+        {
+            "id": "priroda",
+            "title": "Procházka lesem",
+            "text": "Ráno bylo chladné a nad loukou se ještě držela mlha. Cesta vedla podél potoka, který po nočním dešti hlasitě šuměl. Mezi stromy jsme zahlédli srnku, ale než jsem stačil vytáhnout telefon, byla pryč. Na pasece kvetly vlčí máky a nad nimi kroužil káně. Pod starým bukem jsme našli první hříbky letošního roku. Děti počítaly letokruhy na pařezu a došly k číslu osmdesát sedm. Cestou zpátky se vyjasnilo a z rozhledny byly vidět Krkonoše. Domů jsme dorazili unavení, špinaví a spokojení.",
+        },
+        {
+            "id": "historie",
+            "title": "Z historie města",
+            "text": "Město bylo založeno ve třináctém století na křižovatce obchodních cest. Původní dřevěné hradby nahradily kamenné až o dvě stě let později. Náměstí si dodnes zachovalo středověký půdorys, i když většina domů má barokní fasády. Radniční věž měří padesát dva metrů a vede na ni sto dvacet schodů. V roce tisíc osm set osmdesát šest sem dorazila železnice a s ní první továrny. Dnes tu žije přibližně dvacet tisíc obyvatel. Nejstarší dochovaná listina je uložena v okresním archivu. Prohlídka s průvodcem začíná každý den v deset a ve dvě hodiny.",
+        },
+        {
+            "id": "asistent",
+            "title": "Rozhovor s asistentem",
+            "text": "Jaké bude dnes počasí? Dopoledne polojasno, odpoledne přeháňky, nejvyšší teplota šestnáct stupňů. Nastav budík na půl sedmé. Budík je nastavený na šest třicet ráno. Kolik je hodin? Je čtvrt na osm. Přidej na seznam mouku a cukr. Přidáno, na seznamu máte teď šest položek. Zapni světlo v kuchyni na padesát procent. Hotovo. Jak dlouho trvá cesta do práce? Při současném provozu dvacet pět minut. Děkuji. Rádo se stalo, hezký den.",
+        },
+        {
+            "id": "dopis",
+            "title": "Dopis kamarádce",
+            "text": "Milá Kláro, konečně jsem si našla chvíli, abych ti napsala. Stěhování máme za sebou, i když krabice ještě stojí v chodbě. Nový byt je menší, ale má balkon s výhledem na řeku a to mi dělá velkou radost. Děti si zvykly rychleji než my, už mají kamarády v domě. Práce je zatím stejná, jen cesta trvá o dvacet minut déle. V sobotu bychom vás rádi pozvali na oběd, co vy na to? Dej vědět, jestli vám to vyhovuje, uvařím něco bezlepkového. Moc se na vás těším, pozdravuj Honzu a kluky.",
+        },
+        {
+            "id": "zpravy",
+            "title": "Krátké zprávy",
+            "text": "Vláda dnes schválila rozpočet na příští rok, výdaje porostou o tři procenta. V Brně otevřeli nový úsek tramvajové trati o délce čtyři kilometry. Astronomové objevili planetu, která obíhá dvě hvězdy najednou. Ceny potravin v dubnu mírně klesly, nejvíc zlevnilo máslo. Hokejová reprezentace vyhrála přípravný zápas tři dva v prodloužení. Zítra bude v celé republice oblačno, na horách sněžení. Dálnice u Humpolce je po nehodě průjezdná jedním pruhem. A na závěr: v Praze se narodilo mládě žirafy, váží šedesát pět kilo.",
+        },
+        {
+            "id": "pohadka2",
+            "title": "O lišce a vráně",
+            "text": "Vrána seděla na větvi a v zobáku držela kus sýra. Pod stromem se zastavila liška a hladově se podívala nahoru. Jak krásné máš peří, zavolala na vránu, a jak chytré oči! Určitě máš i nejkrásnější hlas v celém lese. Vrána se zaradovala, otevřela zobák a zakrákala. Sýr spadl na zem a liška ho chňapla dřív, než dopadl. Příště si pochvalu nejdřív prověř, zasmála se a zmizela v křoví. Vrána od té doby mlčí, kdykoli má v zobáku něco dobrého.",
+        },
+        {
+            "id": "otazky",
+            "title": "Otázky a zvolání",
+            "text": "Opravdu jsi to udělal sám? To snad není možné! Kde jsi nechal klíče od auta? Pojď sem, rychle! Kolik to stálo, dvě stě, nebo tři sta? Nevěřím ti ani slovo. Proč jsi mi to neřekl dřív? Pozor, schod! Mohl bys mi prosím podat tu knihu? Výborně, přesně tohle jsem potřeboval. Jak dlouho ještě budeme čekat? Neboj se, všechno dobře dopadne.",
+        },
     ],
     "en": [
         {
@@ -83,12 +143,12 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
         {
             "id": "weather",
             "title": "Weather forecast",
-            "text": "Today will be mostly cloudy with scattered showers in the afternoon. Highs will reach seventeen to twenty degrees. The wind will be light, from the southwest, around three metres per second. Tonight it cools down to eight degrees and there may be fog before dawn. Tomorrow we expect sunshine and warmth. At the weekend, however, a cold front is coming back.",
+            "text": "Today will be mostly cloudy with scattered showers in the afternoon. Highs will reach seventeen to twenty degrees. The wind will be light, from the southwest, around three meters per second. Tonight it cools down to eight degrees and there may be fog before dawn. Tomorrow we expect sunshine and warmth. At the weekend, however, a cold front is coming back.",
         },
         {
             "id": "recipe",
             "title": "A soup recipe",
-            "text": "First chop an onion and fry it in butter until golden. Add three carrots, two potatoes and a piece of celeriac. Pour in a litre of stock and cook for twenty minutes, until the vegetables are soft. Then blend the soup and season it with salt, pepper and a pinch of nutmeg. Serve with toasted bread. Those who like it can add a spoon of cream.",
+            "text": "First chop an onion and fry it in butter until golden. Add three carrots, two potatoes and a piece of celeriac. Pour in a liter of stock and cook for twenty minutes, until the vegetables are soft. Then blend the soup and season it with salt, pepper and a pinch of nutmeg. Serve with toasted bread. Those who like it can add a spoon of cream.",
         },
         {
             "id": "trip",
@@ -120,6 +180,66 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "title": "A bedtime story",
             "text": "Beyond seven mountains stood a small mill where a miller lived with his daughter Annie. Every morning she was the first to get up and feed the hens, the ducks and the old donkey. One day she found a shiny stone by the river that glowed at night like a star. When she took it in her hand, she heard a quiet voice. Whoever finds me shall have one wish. Annie thought for a while and wished that nobody in the whole land would ever be hungry again.",
         },
+        {
+            "id": "shopping",
+            "title": "Shopping list and the day's plan",
+            "text": "Your shopping list has milk, bread, eggs, butter and two kilos of potatoes. I added coffee too, because it ran out yesterday. The shop closes at eight tonight, it is open longer today. At three in the afternoon you have the dentist, the drive takes twenty minutes. I also put aunt Mary's birthday in the calendar, it is next Tuesday. The laundry in the dryer will be done in half an hour. Do you want a reminder when it is? The temperature in the children's room dropped to nineteen degrees, shall I turn the heating up? One more thing: the battery in the balcony sensor is almost flat.",
+        },
+        {
+            "id": "week",
+            "title": "The week's forecast",
+            "text": "Monday will be partly cloudy with temperatures around fifteen degrees. Tuesday brings rain, thunderstorms in places and a strong westerly wind. On Wednesday it clears up, but there may be ground frost in the morning. Thursday and Friday will be sunny, up to twenty two degrees in the afternoon. The weekend gets warmer still, Saturday will be the warmest day of the week. On Sunday evening a cold front approaches from the north. When are you planning the trip? I would suggest Thursday or Saturday; on Tuesday, take an umbrella.",
+        },
+        {
+            "id": "train",
+            "title": "A story from the train",
+            "text": "The train left with a slight delay and Petra finally sat down by the window. Fields, copses and the odd village with a church flashed past outside. Opposite her sat an older gentleman with a newspaper, muttering every now and then. In Colchester a woman with two children got on, with a suitcase that did not fit on the rack. Petra helped them and got talking. It turned out they were going to the same wedding as she was. What are the odds of that? They laughed about it all the way to Ipswich. When they got off, the man with the newspaper smiled for the first time and wished them a lovely party.",
+        },
+        {
+            "id": "jam",
+            "title": "How to make jam",
+            "text": "First wash the jars thoroughly and let them dry upside down. Wash the fruit, remove the stones and cut it into pieces of the same size. Count roughly four hundred grams of sugar per kilogram of fruit. Bring the mixture to the boil and cook for ten minutes, stirring all the time. Fill the jars with the hot jam right to the brim and close them at once. Then turn them lid down and leave them for ten minutes. The lids should curve inwards as they cool. If a lid clicks, keep that jar in the fridge and eat it first. Made this way, the jam keeps for a year.",
+        },
+        {
+            "id": "match",
+            "title": "Sports report",
+            "text": "The home side started the match on the front foot and led one nil as early as the fifth minute. The visitors equalized from a penalty just before the break. The second half began cautiously, both teams wary of mistakes. The decisive moment came in the eighty third minute, when a substitute striker finished a quick counter-attack. The final score of two one means the first win in four games for the hosts. After the match the coach praised the defense and the crowd of more than six thousand. Next Saturday the team plays away, kick-off is at half past five.",
+        },
+        {
+            "id": "forest",
+            "title": "A walk in the woods",
+            "text": "The morning was cold and mist still hung over the meadow. The path ran along a brook that murmured loudly after the night's rain. Between the trees we glimpsed a deer, but it was gone before I could get my phone out. Poppies bloomed in the clearing and a buzzard circled above them. Under the old beech we found the first mushrooms of the year. The children counted the rings on a stump and arrived at eighty seven. On the way back the sky cleared and the hills were visible from the lookout. We got home tired, muddy and content.",
+        },
+        {
+            "id": "history",
+            "title": "From the town's history",
+            "text": "The town was founded in the thirteenth century at a crossroads of trade routes. The original wooden walls were replaced by stone ones two hundred years later. The square keeps its medieval layout to this day, although most houses have baroque fronts. The town hall tower is fifty two meters high and a hundred and twenty steps lead to the top. In eighteen eighty six the railway arrived, and the first factories with it. Today about twenty thousand people live here. The oldest surviving charter is kept in the district archive. The guided tour starts every day at ten and at two o'clock.",
+        },
+        {
+            "id": "assistant",
+            "title": "Talking to the assistant",
+            "text": "What is the weather today? Partly cloudy in the morning, showers in the afternoon, a high of sixteen degrees. Set an alarm for half past six. The alarm is set for six thirty in the morning. What time is it? It is a quarter past seven. Add flour and sugar to the list. Added, there are six items on the list now. Turn the kitchen light on at fifty percent. Done. How long is the drive to work? Twenty five minutes in the current traffic. Thank you. You are welcome, have a nice day.",
+        },
+        {
+            "id": "letter",
+            "title": "A letter to a friend",
+            "text": "Dear Clare, I have finally found a moment to write to you. The move is behind us, although boxes still stand in the hall. The new flat is smaller, but it has a balcony looking over the river and that makes me very happy. The children settled in faster than we did, they already have friends in the building. Work is the same so far, only the commute takes twenty minutes longer. On Saturday we would love to have you over for lunch, what do you say? Let me know if it suits you, I will cook something gluten-free. I am really looking forward to seeing you, give my love to John and the boys.",
+        },
+        {
+            "id": "news",
+            "title": "Brief news",
+            "text": "The government approved next year's budget today, spending will rise by three percent. A new four kilometer stretch of tram line opened in Manchester. Astronomers discovered a planet that orbits two stars at once. Food prices fell slightly in April, butter dropped the most. The national hockey team won a friendly three two in overtime. Tomorrow will be cloudy across the country, with snow on the hills. The motorway near Leeds is passable in one lane after an accident. And finally: a baby giraffe was born in London, it weighs sixty five kilos.",
+        },
+        {
+            "id": "fox",
+            "title": "The fox and the crow",
+            "text": "A crow sat on a branch with a piece of cheese in her beak. A fox stopped under the tree and looked up hungrily. What beautiful feathers you have, she called to the crow, and what clever eyes! Surely you have the loveliest voice in the whole forest too. The crow was delighted, opened her beak and cawed. The cheese fell and the fox snapped it up before it hit the ground. Next time, check the praise first, she laughed, and vanished into the bushes. Ever since, the crow keeps quiet whenever she has something tasty in her beak.",
+        },
+        {
+            "id": "questions",
+            "title": "Questions and exclamations",
+            "text": "Did you really do it yourself? That cannot be true! Where did you leave the car keys? Come here, quickly! How much was it, two hundred or three hundred? I do not believe a word of it. Why did you not tell me sooner? Mind the step! Could you pass me that book, please? Excellent, that is exactly what I needed. How much longer do we have to wait? Do not worry, everything will turn out fine.",
+        },
     ],
 }
 
@@ -148,5 +268,5 @@ def queue_paragraph(pid: str) -> dict[str, Any]:
     paragraph = next((p for p in BUILTIN.get(language, []) if p["id"] == pid), None)
     if paragraph is None:
         raise HTTPException(404, {"code": "not_found", "message": "Unknown paragraph"})
-    added = prompts.add_custom(voice, paragraph["text"])
+    added = prompts.add_custom(voice, paragraph["text"], source=paragraph["title"])
     return {"added": added, "sentences": len(_sentences(paragraph["text"]))}

@@ -215,6 +215,7 @@ def queue_text(body: dict[str, Any]):
     """Queues the sentences of a chapter, a web page or pasted text at the front of the reading queue."""
     voice = require_voice()
     language = load_settings(voice)["language"]
+    source = ""
     try:
         if body.get("book"):
             book = next((b for b in BOOKS.get(language, []) if b["id"] == body["book"]), None)
@@ -223,13 +224,16 @@ def queue_text(body: dict[str, Any]):
             page = str(body.get("page", ""))
             if book["source"] == "wikisource":
                 text = wikisource_text(book["site"], page)
+                source = f"{book['title']} · {page.split('/')[-1]}"
             else:
                 chapter = next((c for c in gutenberg_chapters(book["url"]) if c["page"] == page), None)
                 if chapter is None:
                     raise HTTPException(404, {"code": "not_found", "message": "Unknown chapter"})
                 text = chapter["text"]
+                source = f"{book['title']} · {chapter['title']}"
         elif body.get("url"):
             text = fetch_url_text(str(body["url"]).strip())
+            source = str(body["url"]).strip()[:80]
         else:
             text = str(body.get("text", ""))
     except requests.RequestException as exc:
@@ -237,5 +241,7 @@ def queue_text(body: dict[str, Any]):
     sentences = sentences_of(text)
     if not sentences:
         raise HTTPException(400, {"code": "no_sentences", "message": "No sentences found in the text"})
-    added = prompts.add_custom(voice, "\n".join(sentences))
+    if not source:
+        source = (sentences[0][:40] + "…") if len(sentences[0]) > 40 else sentences[0]
+    added = prompts.add_custom(voice, "\n".join(sentences), source=source)
     return {"added": added, "sentences": len(sentences)}

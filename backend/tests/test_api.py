@@ -184,6 +184,19 @@ def test_redo_puts_the_sentence_first_even_when_it_is_a_custom_prompt():
     client.delete(f"/api/recordings/{rec['id']}")
 
 
+def test_custom_batches_can_be_removed():
+    client.post("/api/prompts/custom", json={"text": "První věta z omylem vložené knihy. Druhá věta z té samé knihy.", "source": "Kniha · Kapitola 1"})
+    client.post("/api/prompts/custom", json={"text": "Tahle věta zůstává ve frontě dál.", "source": "Jiný text"})
+    batches = {b["source"]: b for b in client.get("/api/prompts/custom").json()["batches"]}
+    assert batches["Kniha · Kapitola 1"]["remaining"] == 2 and batches["Jiný text"]["remaining"] == 1
+    assert client.delete("/api/prompts/custom", params={"source": "Kniha · Kapitola 1"}).json()["removed"] == 2
+    batches = {b["source"]: b for b in client.get("/api/prompts/custom").json()["batches"]}
+    assert "Kniha · Kapitola 1" not in batches and batches["Jiný text"]["remaining"] == 1
+    assert client.get("/api/prompts?count=1").json()["items"][0]["text"] == "Tahle věta zůstává ve frontě dál."
+    client.delete("/api/prompts/custom")
+    assert client.get("/api/prompts/custom").json()["batches"] == []
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False
