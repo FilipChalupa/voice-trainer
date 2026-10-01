@@ -45,6 +45,8 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   const [snr, setSnr] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [verifyOn, setVerifyOn] = useState(true);
+  const verifyRef = useRef(true); // read inside the capture callback, which outlives state changes
+  verifyRef.current = verifyOn;
   const [silenceMs, setSilenceMs] = useState(() => {
     try {
       return Number(localStorage.getItem("voice-trainer.flow.silence") ?? 700) || 700;
@@ -82,7 +84,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
           const rec = await api.uploadRecording(segment.wav, prompt.text, prompt.id);
           setTaken((list) => [...list, { prompt, rec }]);
           beep(true);
-          if (verifyOn) api.verifyRecording(rec.id).catch(() => undefined);
+          if (verifyRef.current) api.verifyRecording(rec.id).catch(() => undefined);
         } catch (e) {
           // a stretch without speech (the server's own check) is just dropped; anything else is reported
           const silent = e instanceof ApiError && e.code === "silent_recording";
@@ -98,7 +100,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
         if (queueRef.current.length < 6) await refill().catch(() => undefined);
       });
     },
-    [onError, refill, t, verifyOn],
+    [onError, refill, t],
   );
 
   const start = useCallback(async () => {
