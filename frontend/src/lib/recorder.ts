@@ -115,7 +115,7 @@ export class Recorder {
       } else if (rms < noiseFloor * 1.5) {
         noiseFloor = noiseFloor * 0.98 + rms * 0.02;
       }
-      const speechThreshold = Math.max(0.006, noiseFloor * 3.5);
+      const speechThreshold = Math.max(speechSeen ? 0.005 : 0.01, noiseFloor * (speechSeen ? 2.5 : 4));
       if (rms > speechThreshold) {
         speechSeen = true;
         silentFrames = 0;
@@ -205,7 +205,9 @@ export class Recorder {
     let noiseFloor = 0.001;
     let floorSamples = 0;
     let speechRms = 0;
+    let loudSamples = 0;
     let stopped = false;
+    const minLoudFrames = Math.ceil(0.25 * sr); // a quarter second of clear speech, or it was a noise
 
     const emit = () => {
       // drop the trailing quiet beyond 250 ms, keep the rest
@@ -224,8 +226,10 @@ export class Recorder {
       speaking = false;
       silentFrames = 0;
       const snrDb = 20 * Math.log10(Math.max(speechRms, 1e-6) / Math.max(noiseFloor, 1e-6));
+      const spoken = loudSamples;
       speechRms = 0;
-      if (total < minFrames) return;
+      loudSamples = 0;
+      if (total < minFrames || spoken < minLoudFrames) return; // a breath, a click, a chair: not a take
       void resample(merged, sr, TARGET_SAMPLE_RATE).then((resampled) => {
         if (!stopped) onSegment({ wav: encodeWav(resampled, TARGET_SAMPLE_RATE), samples: resampled, seconds: resampled.length / TARGET_SAMPLE_RATE, snrDb });
       });
@@ -249,8 +253,11 @@ export class Recorder {
       } else if (!speaking && rms < noiseFloor * 2) {
         noiseFloor = noiseFloor * 0.97 + rms * 0.03;
       }
-      const threshold = Math.max(0.006, noiseFloor * 3.5);
-      const loud = rms > threshold;
+      // hysteresis: a stretch starts only on clear speech (breaths and clicks stay below), but once it runs,
+      // softer sounds keep it going so word endings are not lost
+      const onset = Math.max(0.01, noiseFloor * 4);
+      const sustain = Math.max(0.005, noiseFloor * 2.5);
+      const loud = rms > (speaking ? sustain : onset);
       if (!speaking) {
         preroll.push(data);
         prerollLength += data.length;
@@ -263,6 +270,7 @@ export class Recorder {
           prerollLength = 0;
           silentFrames = 0;
           speechRms = rms;
+          loudSamples = data.length;
         }
       } else {
         chunks.push(data);
@@ -270,6 +278,7 @@ export class Recorder {
         if (loud) {
           silentFrames = 0;
           speechRms = Math.max(speechRms, rms);
+          if (rms > onset) loudSamples += data.length;
         } else {
           silentFrames += data.length;
         }

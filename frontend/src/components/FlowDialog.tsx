@@ -5,7 +5,7 @@ import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import ReplayIcon from "@mui/icons-material/Replay";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
-import { api, type Prompt, type Recording } from "../api";
+import { api, ApiError, type Prompt, type Recording } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder } from "../lib/recorder";
 import { LevelMeter } from "./LevelMeter";
@@ -84,8 +84,12 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
           beep(true);
           if (verifyOn) api.verifyRecording(rec.id).catch(() => undefined);
         } catch (e) {
-          beep(false);
-          onError(errorText(t, e));
+          // a stretch without speech (the server's own check) is just dropped; anything else is reported
+          const silent = e instanceof ApiError && e.code === "silent_recording";
+          if (!silent) {
+            beep(false);
+            onError(errorText(t, e));
+          }
           queueRef.current = [prompt, ...queueRef.current]; // the sentence comes back for another go
           setQueue([...queueRef.current]);
         } finally {
