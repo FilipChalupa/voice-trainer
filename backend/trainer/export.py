@@ -13,7 +13,26 @@ def emit(event: str, **data) -> None:
     print("@@" + json.dumps({"event": event, **data}, ensure_ascii=False), flush=True)
 
 
-def export_checkpoint(checkpoint: Path, output: Path, config: Path) -> None:
+LANGUAGE_NAMES = {
+    "cs_CZ": {"name_native": "Čeština", "name_english": "Czech", "country_english": "Czech Republic"},
+    "en_US": {"name_native": "English", "name_english": "English", "country_english": "United States"},
+}
+
+
+def write_voice_config(config: Path, target: Path, job: dict) -> None:
+    """The trainer's config plus what the published voices carry: language block (Home Assistant and
+    wyoming-piper read the language from it), dataset name, quality, an empty phoneme map."""
+    data = json.loads(config.read_text())
+    code = job.get("piper_language") or "en_US"
+    family, _, region = code.partition("_")
+    data.setdefault("language", {"code": code, "family": family, "region": region, **LANGUAGE_NAMES.get(code, {"name_native": family, "name_english": family, "country_english": region})})
+    data.setdefault("dataset", job.get("slug") or "voice")
+    data.setdefault("audio", {})["quality"] = "medium"
+    data.setdefault("phoneme_map", {})
+    target.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def export_checkpoint(checkpoint: Path, output: Path, config: Path, job: dict) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(
         [sys.executable, "-m", "trainer.onnx_export", "--checkpoint", str(checkpoint), "--output-file", str(output)],
@@ -22,7 +41,7 @@ def export_checkpoint(checkpoint: Path, output: Path, config: Path) -> None:
     )
     if proc.returncode != 0 or not output.exists():
         raise RuntimeError(f"ONNX export failed for {checkpoint.name}: {(proc.stderr or proc.stdout)[-600:]}")
-    shutil.copyfile(config, Path(str(output) + ".json"))
+    write_voice_config(config, Path(str(output) + ".json"), job)
 
 
 def variant_of(checkpoint: Path) -> str:
@@ -59,7 +78,7 @@ def main() -> int:
         name = base_name if variant == "last" else f"{base_name}.{variant}"
         target = export_dir / f"{name}.onnx"
         emit("progress", current=i - 1, total=len(checkpoints))
-        export_checkpoint(ckpt, target, config)
+        export_checkpoint(ckpt, target, config, job)
         exported.append({"variant": variant, "file": target.name, "checkpoint": ckpt.name, "size": target.stat().st_size})
         emit("log", message=f"Exported {ckpt.name} -> {target.name} ({target.stat().st_size // (1 << 20)} MB)")
     (export_dir / "exports.json").write_text(json.dumps(exported, indent=2))

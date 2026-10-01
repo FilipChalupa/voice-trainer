@@ -207,6 +207,15 @@ def test_export_variants_and_usage_text():
     from trainer.export import variant_of
 
     assert variant_of(Path("last.ckpt")) == "last" and variant_of(Path("best_mos-epoch=40.ckpt")) == "best_mos" and variant_of(Path("best_mel-epoch=90.ckpt")) == "best_mel"
+    from trainer.export import write_voice_config
+
+    src = Path(config.DATA_DIR) / "cfg.json"
+    src.write_text(json.dumps({"espeak": {"voice": "cs"}, "audio": {"sample_rate": 22050}, "num_speakers": 1}))
+    out = Path(config.DATA_DIR) / "voice.onnx.json"
+    write_voice_config(src, out, {"piper_language": "cs_CZ", "slug": "filip"})
+    written = json.loads(out.read_text())
+    assert written["language"]["code"] == "cs_CZ" and written["language"]["family"] == "cs" and written["dataset"] == "filip"
+    assert written["audio"] == {"sample_rate": 22050, "quality": "medium"} and written["phoneme_map"] == {}
     text = usage_text("cs_CZ-filip-medium", {"name": "Filip", "owner": "Filip Chalupa", "consent": {"at": "2026-01-01"}})
     assert "/share/piper" in text and "cs_CZ-filip-medium.onnx.json" in text and "Filip Chalupa" in text
 
