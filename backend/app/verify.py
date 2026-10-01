@@ -153,7 +153,12 @@ def reconcile(voice: Voice, rid: str) -> None:
 
     from .recordings import _to_trash
     from .prompts import prompt_id
-    from trainer.verify_worker import similarity
+    from trainer.verify_worker import similarity as _similarity
+
+    lang = LANGUAGES[load_settings(voice)["language"]]["espeak"].split("-")[0]
+
+    def similarity(expected: str, heard: str) -> float:
+        return _similarity(expected, heard, lang)
 
     with _reconcile_lock:
         index = load_index(voice)

@@ -201,7 +201,7 @@ export class Recorder {
     let collected = 0;
     let speaking = false;
     let silentFrames = 0;
-    let noiseFloor = 0.003;
+    let noiseFloor = 0.001;
     let floorSamples = 0;
     let speechRms = 0;
     let stopped = false;
@@ -240,13 +240,15 @@ export class Recorder {
         if (Math.abs(v) > peak) peak = Math.abs(v);
       }
       const rms = Math.sqrt(sum / data.length);
-      if (floorSamples < sr * 0.3) {
-        noiseFloor = Math.max(noiseFloor, rms);
+      // the noise floor is the quietest moment of the first half second (the person may already be talking),
+      // then it follows quiet stretches slowly
+      if (floorSamples < sr * 0.5) {
+        noiseFloor = floorSamples === 0 ? Math.max(rms, 0.0005) : Math.max(Math.min(noiseFloor, rms), 0.0005);
         floorSamples += data.length;
       } else if (!speaking && rms < noiseFloor * 2) {
         noiseFloor = noiseFloor * 0.97 + rms * 0.03;
       }
-      const threshold = Math.max(0.012, noiseFloor * 3.5);
+      const threshold = Math.max(0.006, noiseFloor * 3.5);
       const loud = rms > threshold;
       if (!speaking) {
         preroll.push(data);

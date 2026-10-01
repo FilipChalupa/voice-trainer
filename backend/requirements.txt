@@ -6,4 +6,5 @@ scipy>=1.13
 numpy>=2.0
 requests>=2.32
 spylls==0.1.7
+num2words==0.5.14
 # Piper (inference + training) is installed from a pinned git checkout in the Dockerfile.

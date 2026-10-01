@@ -100,8 +100,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   const start = useCallback(async () => {
     try {
       await recorder.init(deviceId || undefined, agc);
-      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs, minSeconds: 0.8, maxSeconds, prerollMs: 300 });
-      setPhase("listening");
+      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs, minSeconds: 0.8, maxSeconds, prerollMs: 400 });
     } catch (e) {
       onError(errorText(t, e));
       setPhase("paused");
@@ -120,7 +119,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   useEffect(() => {
     if (phase !== "listening") return;
     stopCapture();
-    start();
+    start().then(() => setPhase("listening"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [silenceMs]);
 
@@ -157,8 +156,9 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
 
   useEffect(() => {
     if (!open || phase !== "countdown") return;
+    if (!stopRef.current) start(); // the microphone opens with the countdown: noise floor and pre-roll are ready before the first word
     if (count <= 0) {
-      start();
+      setPhase("listening");
       return;
     }
     const timer = setTimeout(() => setCount((c) => c - 1), 800);
