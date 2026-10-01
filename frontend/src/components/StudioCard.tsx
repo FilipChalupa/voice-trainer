@@ -22,6 +22,8 @@ import { LevelMeter } from "./LevelMeter";
 import { SessionStats } from "./SessionStats";
 import { useReview } from "../lib/useReview";
 import { ParagraphsDialog } from "./ParagraphsDialog";
+import { FlowDialog, type Summary } from "./FlowDialog";
+import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 const PREF_PREFIX = "voice-trainer.studio.";
@@ -77,6 +79,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<HTMLElement | null>(null);
   const [paragraphsOpen, setParagraphsOpen] = useState(false);
+  const [flowOpen, setFlowOpen] = useState(false);
   const [customText, setCustomText] = useState("");
   const [info, setInfo] = useState<string | null>(null);
 
@@ -389,6 +392,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             <Button startIcon={<ReplayIcon />} onClick={redoLast} disabled={disabled || busy || recordings.length === 0}>
               {t("studio.redo")}
             </Button>
+            <Button variant="outlined" startIcon={<RecordVoiceOverIcon />} onClick={() => setFlowOpen(true)} disabled={disabled || busy || !current}>
+              {t("studio.flow")}
+            </Button>
             {review.queue.length > 0 && (
               <Button startIcon={<FactCheckIcon />} onClick={() => setReviewOpen(true)} disabled={disabled || busy} color="warning">
                 {t("studio.review", { n: review.queue.length })}
@@ -450,6 +456,20 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       </CardContent>
 
       <PhoneDialog open={phoneOpen} onClose={() => setPhoneOpen(false)} />
+      <FlowDialog
+        open={flowOpen}
+        recorder={recorderRef.current}
+        deviceId={deviceId}
+        agc={agc}
+        maxSeconds={voice.max_record_seconds}
+        onClose={async (summary: Summary | null) => {
+          setFlowOpen(false);
+          await refresh();
+          onChanged();
+          if (summary && summary.taken > 0) setInfo(t("flow.summary", { n: summary.taken, minutes: (summary.seconds / 60).toFixed(1), mismatched: summary.mismatched, pending: summary.pending }));
+        }}
+        onError={onError}
+      />
       <ParagraphsDialog
         open={paragraphsOpen}
         onClose={() => setParagraphsOpen(false)}

@@ -108,6 +108,16 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
               ))}
             </Stack>
             <AudioPlayer key={`${rec.id}-${replay}`} src={rec.url} peaks={rec.peaks} autoPlay />
+            {rec.verify?.transcript && rec.verify.status !== "ok" && (
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography variant="body2" color="text.secondary">
+                  {t("flow.heard", { text: rec.verify.transcript })}
+                </Typography>
+                <Button size="small" onClick={() => setText(rec.verify!.transcript!)}>
+                  {t("review.useTranscript")}
+                </Button>
+              </Stack>
+            )}
             <TextField inputRef={fieldRef} label={t("review.text")} value={text} onChange={(e) => setText(e.target.value)} multiline minRows={2} fullWidth helperText={t("review.textHint")} />
             <Typography variant="caption" color="text.secondary">
               {t("review.keys")}

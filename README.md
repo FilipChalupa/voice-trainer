@@ -28,8 +28,12 @@ the header shows a running training from every tab. A glossary behind the questi
 2. **Recording studio** – sentences are shown one at a time. Press Space, read, and the recording stops by itself
    after you finish. The sentence is the transcript, so no speech recognition is involved. Each take gets quality
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
-   add your own sentences or read one of the built-in paragraphs (a story, a forecast, a recipe) sentence by
-   sentence, so the intonation of connected speech gets recorded too. 5 minutes is the minimum, 30 minutes is
+   add your own sentences or read connected text sentence by sentence: built-in paragraphs, public-domain books
+   (Čapek, Hašek, Němcová from Wikisource; Carroll, Doyle, Baum from Project Gutenberg), any web page or pasted
+   text. **Reading in one go** keeps the microphone open and shows the text like a teleprompter: every spoken
+   stretch becomes the take of the sentence on screen, Whisper checks each take against its text in the
+   background and mismatches land in the review queue; a live speech-to-noise margin warns when the setup
+   gets worse. 5 minutes is the minimum, 30 minutes is
    recommended, 60 minutes is ideal; the studio shows today's count, the pace and when the next goal is reached.
    The **Data** tab holds the dataset overview and the imports: the recordings with their texts can be downloaded
    as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`) to train with other tools, and such a ZIP can be
@@ -130,7 +134,7 @@ backend/app        FastAPI: voices + consent, prompts, recordings (+ dataset exp
                    base checkpoints, jobs (manager + SSE), check (model vs. recordings), synthesis/export,
                    system info, serve.py (HTTP + HTTPS listeners), static frontend
 backend/trainer    fit.py (Piper trainer with progress/preview callbacks), export.py + onnx_export.py (ONNX export),
-                   transcribe.py (Whisper transcript + sentence cutting)
+                   transcribe.py (Whisper transcript + sentence cutting), verify_worker.py (take vs. text check)
 backend/tests      pytest suite (no PyTorch needed: pip install -r backend/requirements-dev.txt)
 frontend           Vite + React + TypeScript + Material UI, Czech/English, light/dark by system setting
 scripts            e2e.sh runs the smoke test (and with --screenshots a demo dataset, a short training and the README
@@ -148,6 +152,8 @@ data/              (runtime) base/, prompts/, voices/<id>/{recordings,jobs,conse
 | POST / GET / DELETE | `/api/consent` · `/api/consent/audio` | Spoken consent of the voice owner |
 | GET / POST | `/api/prompts` · `/api/prompts/custom` · `/api/prompts/{id}/skip` | Sentences to read |
 | GET / POST | `/api/paragraphs` · `/api/paragraphs/{id}/queue` | Built-in connected texts, queued sentence by sentence |
+| GET / POST | `/api/library` · `/api/library/{book}` · `/api/library/queue` | Public-domain books, web pages and pasted text as reading queues |
+| POST / GET | `/api/recordings/{id}/verify` · `/api/verify` | Whisper check of a take against its sentence (worker stays loaded) |
 | GET / POST / PUT / DELETE | `/api/recordings` · `/api/recordings/{id}` · `…/audio` · `…/restore` | Recordings with transcripts |
 | GET / POST | `/api/dataset` · `/api/dataset/export` · `/api/dataset/import` | Dataset report, recordings + transcripts as a ZIP (LJSpeech layout) and back |
 | POST / GET | `/api/transcribe` · `/api/transcribe/cancel` | Long recording → Whisper transcript → sentence recordings |

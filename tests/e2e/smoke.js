@@ -3,8 +3,8 @@ const { chromium } = require("playwright");
 const BASE = process.env.BASE_URL || "http://localhost:8001";
 
 (async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ locale: "en-US" });
+  const browser = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
+  const page = await browser.newPage({ locale: "en-US", permissions: ["microphone"] });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto(BASE, { waitUntil: "load" });
@@ -42,6 +42,14 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
   }
+  // reading in one go: the teleprompter opens with the current sentence and closes with Escape
+  const sentence = (await page.locator("textarea").first().inputValue()).trim();
+  await page.getByRole("button", { name: "Read in one go" }).click();
+  await page.waitForTimeout(3500);
+  const flowText = await page.getByRole("dialog").innerText();
+  if (sentence && !flowText.includes(sentence.slice(0, 20))) throw new Error("Flow dialog does not show the current sentence");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(1500);
   // the glossary and the step bar
   await page.getByRole("button", { name: "Glossary" }).click();
   await page.waitForTimeout(500);

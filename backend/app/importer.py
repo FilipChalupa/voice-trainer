@@ -69,6 +69,9 @@ class Transcriber:
             raise HTTPException(409, {"code": "import_running", "message": "Another recording is being transcribed"})
         if manager.is_running():
             raise HTTPException(409, {"code": "already_running", "message": "Training is running; transcribe afterwards (both need the GPU)"})
+        from .verify import verifier
+
+        verifier.stop()
         settings = load_settings(voice)
         with self._lock:
             self.state = {**self._idle(), "status": "loading", "voice_id": voice.id, "file": original_name}

@@ -140,3 +140,18 @@ def test_quiet_pauses_fades_long_pauses_only():
     assert 0.8 < rms(2.0, 2.08) < 1.05  # the short gap untouched
     assert rms(3.7, 4.2) < 0.2  # the long pause down by ~18 dB
     assert rms(0.0, 0.4) < 0.2  # leading silence too
+
+
+def test_split_sentences_keeps_abbreviations_and_initials_together():
+    text = "A teď měl koncipient dr. Mejzlík vyšetřit, které auto to bylo. Napsal to K. Čapek v r. 1929! „Poslyšte,“ řekl. Co teď?"
+    assert prompts.split_sentences(text) == ["A teď měl koncipient dr. Mejzlík vyšetřit, které auto to bylo.", "Napsal to K. Čapek v r. 1929!", "„Poslyšte,“ řekl."]
+
+
+def test_library_cleaning():
+    from app.library import _chapter_key, strip_gutenberg, strip_wikitext
+
+    wiki = "{{Textinfo|AUTOR=[[Autor:Karel Čapek|Karel Čapek]]}}\n== Hlava ==\n''Byla'' to [[běžná|běžná]] událost<ref>pozn.</ref>, řekl.\n"
+    assert strip_wikitext(wiki).strip() == "Byla to běžná událost, řekl."
+    gb = "junk\r\n*** START OF THE PROJECT GUTENBERG EBOOK X ***\r\nFirst line\r\nsame paragraph.\r\n\r\nNext.\r\n*** END OF THE PROJECT GUTENBERG EBOOK X ***\r\nlicense"
+    assert strip_gutenberg(gb).strip() == "First line same paragraph.\n\nNext."
+    assert [_chapter_key(x)[0] for x in ("I", "IV", "IX", "XIV", "3", "Úvod")] == [1, 4, 9, 14, 3, 10**6]

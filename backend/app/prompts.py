@@ -248,11 +248,35 @@ def load_custom(voice: Voice) -> list[dict[str, str]]:
         return []
 
 
+# a full stop after these does not end a sentence (titles, common abbreviations), nor after an initial
+ABBREVIATIONS = {
+    "dr", "ing", "mgr", "bc", "prof", "doc", "mudr", "judr", "phdr", "p", "pí", "sl", "např", "tzv", "tj", "atd", "apod", "č", "čl", "sv", "st",
+    "resp", "popř", "cca", "ul", "nám", "tzn", "mj", "tis", "mil", "str", "kpt", "por", "gen", "plk", "npor", "ppor",
+    "mr", "mrs", "ms", "jr", "sr", "vs", "etc", "e.g", "i.e", "no", "vol", "ch", "fig", "col", "capt", "lt", "sgt", "rev", "hon",
+}
+_SENTENCE_END = re.compile(r"(?:(?<=[.?!…])|(?<=[.?!…][\"'”’)]))\s+(?=[„\"'“(]?[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ0-9])|\n+")
+
+
 def split_sentences(text: str) -> list[str]:
-    parts = re.split(r"(?<=[.?!])\s+|\n+", text)
-    out = []
-    for part in parts:
-        s = _clean(part)
+    """Sentences of a text: a sentence ends with . ? ! followed by a capital, unless the dot belongs to an
+    abbreviation or an initial ("dr. Mejzlík", "K. Čapek")."""
+    out: list[str] = []
+    pending = ""
+    for part in _SENTENCE_END.split(text.replace("\r", "")):
+        if not part or not part.strip():
+            continue
+        candidate = (pending + " " + part).strip() if pending else part.strip()
+        last = candidate.rstrip("\"'”’)").split()[-1] if candidate.split() else ""
+        word = last.rstrip(".").lower()
+        if last.endswith(".") and (word in ABBREVIATIONS or (len(word) == 1 and word.isalpha())):
+            pending = candidate
+            continue
+        pending = ""
+        s = _clean(candidate)
+        if len(s) >= 8 and len(s.split()) >= 2:
+            out.append(s[:300])
+    if pending:
+        s = _clean(pending)
         if len(s) >= 8 and len(s.split()) >= 2:
             out.append(s[:300])
     return out

@@ -6,7 +6,7 @@ const minutes = { min: 5, recommended: 30, target: 60 };
 const now = new Date("2026-09-30T12:00:00Z").getTime();
 
 function rec(minutesAgo: number, duration = 6): Recording {
-  return { id: `r${minutesAgo}`, text: "x", prompt_id: null, created: new Date(now - minutesAgo * 60000).toISOString(), duration, url: "", peaks: [], reviewed: false, source: null, quality: { issues: [] } };
+  return { id: `r${minutesAgo}`, text: "x", prompt_id: null, created: new Date(now - minutesAgo * 60000).toISOString(), duration, url: "", peaks: [], reviewed: false, verify: null, source: null, quality: { issues: [] } };
 }
 
 describe("sessionStats", () => {

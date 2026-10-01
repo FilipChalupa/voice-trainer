@@ -7,7 +7,7 @@ import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
 
-from app import check, config, importer
+from app import check, config, importer, verify
 from app.main import app
 
 client = TestClient(app)
@@ -103,3 +103,45 @@ def test_model_check_flags_the_odd_recording(monkeypatch):
     assert all("model_mismatch" not in r["quality"]["issues"] for r in client.get("/api/recordings").json()["items"])
     for r in items:
         client.delete(f"/api/recordings/{r['id']}")
+
+
+FAKE_VERIFY = '''
+import json, sys
+print(json.dumps({"event": "ready", "device": "cpu"}), flush=True)
+for line in sys.stdin:
+    req = json.loads(line)
+    heard = "Úplně jiná věta o něčem jiném." if "jiná" in req["text"] else req["text"]
+    sim = 1.0 if heard == req["text"] else 0.1
+    print(json.dumps({"event": "result", "id": req["id"], "transcript": heard, "similarity": sim}, ensure_ascii=False), flush=True)
+'''
+
+
+def test_similarity_and_verify_endpoint(monkeypatch, tmp_path):
+    from trainer.verify_worker import similarity
+
+    assert similarity("Dobrý den, jak se máte?", "dobrý den jak se máte") == 1.0
+    assert similarity("Dobrý den, jak se máte?", "Dobrý večer, jak se vede?") < 0.8
+    script = tmp_path / "fake_verify.py"
+    script.write_text(FAKE_VERIFY)
+    monkeypatch.setattr(verify, "worker_command", lambda: [verify.sys.executable, str(script)])
+    verify.verifier.stop()
+    ok = client.post("/api/recordings", data={"text": "Věta, která sedí přesně."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    bad = client.post("/api/recordings", data={"text": "Tohle je jiná věta."}, files={"file": ("b.wav", wav_bytes(), "audio/wav")}).json()
+    assert client.post(f"/api/recordings/{ok['id']}/verify").json()["status"] == "pending"
+    assert client.post(f"/api/recordings/{bad['id']}/verify").json()["status"] == "pending"
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        items = {r["id"]: r for r in client.get("/api/recordings").json()["items"]}
+        if all((items[i]["verify"] or {}).get("status") in ("ok", "mismatch", "error") for i in (ok["id"], bad["id"])):
+            break
+        time.sleep(0.1)
+    assert items[ok["id"]]["verify"]["status"] == "ok"
+    assert items[bad["id"]]["verify"]["status"] == "mismatch" and "transcript_mismatch" in items[bad["id"]]["quality"]["issues"]
+    # fixing the text by hand settles the verdict
+    client.put(f"/api/recordings/{bad['id']}", json={"text": "Úplně jiná věta o něčem jiném."})
+    items = {r["id"]: r for r in client.get("/api/recordings").json()["items"]}
+    assert "transcript_mismatch" not in items[bad["id"]]["quality"]["issues"]
+    assert client.get("/api/verify").json()["running"] is True
+    verify.verifier.stop()
+    for rid in (ok["id"], bad["id"]):
+        client.delete(f"/api/recordings/{rid}")

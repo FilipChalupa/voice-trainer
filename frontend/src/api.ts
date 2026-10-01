@@ -47,7 +47,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch";
 
 export type Recording = {
   id: string;
@@ -58,6 +58,7 @@ export type Recording = {
   url: string;
   peaks: number[];
   reviewed: boolean;
+  verify: { status: "pending" | "ok" | "mismatch" | "error"; transcript?: string; similarity?: number } | null;
   source: "import" | "transcribed" | null;
   quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
 };
@@ -98,6 +99,7 @@ export type StorageInfo = {
 export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
 
 export type Prompt = { id: string; text: string };
+export type Book = { id: string; title: string; author: string; source: string };
 export type Paragraph = { id: string; title: string; sentences: number; recorded: number; preview: string };
 export type Prompts = {
   items: Prompt[];
@@ -264,6 +266,10 @@ export const api = {
   deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
   restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),
   prompts: (count = 4) => request<Prompts>(`/api/prompts?count=${count}`),
+  library: () => request<{ items: Book[] }>("/api/library"),
+  book: (id: string) => request<{ id: string; title: string; author: string; chapters: { page: string; title: string }[] }>(`/api/library/${id}`),
+  queueText: (body: { book?: string; page?: string; url?: string; text?: string }) => request<{ added: number; sentences: number }>("/api/library/queue", json("POST", body)),
+  verifyRecording: (id: string) => request<{ status: string }>(`/api/recordings/${id}/verify`, { method: "POST" }),
   paragraphs: () => request<{ items: Paragraph[] }>("/api/paragraphs"),
   queueParagraph: (id: string) => request<{ added: number; sentences: number }>(`/api/paragraphs/${id}/queue`, { method: "POST" }),
   addCustomPrompts: (text: string) => request<{ added: number }>("/api/prompts/custom", json("POST", { text })),

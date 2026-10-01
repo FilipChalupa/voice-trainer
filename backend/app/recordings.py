@@ -66,6 +66,7 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
         "text": entry.get("text", ""),
         "prompt_id": entry.get("prompt_id"),
         "reviewed": bool(entry.get("reviewed")),
+        "verify": entry.get("verify"),  # Whisper check of the flow mode: {status, transcript, similarity}
         "source": entry.get("source"),  # None = recorded here, "import" = from a dataset file, "transcribed" = cut from a long recording
         "created": entry.get("created") or datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
         "duration": info["duration"],
@@ -110,8 +111,13 @@ def list_recordings(voice: Voice) -> list[dict[str, Any]]:
     flag_inconsistent(items)
     suspicious = _flagged_by_model(voice)
     for r in items:
+        extra = []
         if r["id"] in suspicious:
-            r["quality"] = {**r["quality"], "issues": [*r["quality"]["issues"], "model_mismatch"]}
+            extra.append("model_mismatch")
+        if (r.get("verify") or {}).get("status") == "mismatch":
+            extra.append("transcript_mismatch")
+        if extra:
+            r["quality"] = {**r["quality"], "issues": [*r["quality"]["issues"], *extra]}
     return items
 
 
@@ -222,6 +228,8 @@ async def put_recording(rid: str, body: dict[str, Any]):
             raise HTTPException(404, {"code": "not_found", "message": "Recording not found"})
         if text is not None:
             index[rid]["text"] = text
+            if (index[rid].get("verify") or {}).get("status") == "mismatch":
+                index[rid]["verify"] = {**index[rid]["verify"], "status": "ok", "edited": True}
         if "reviewed" in body:
             # a person listened to it and confirmed the text; warnings then no longer queue it for review
             index[rid]["reviewed"] = bool(body["reviewed"])
@@ -307,7 +315,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch")},
         "rare_letters": rare,
         "duration_histogram": buckets,
         "has_consent": has_consent(voice),

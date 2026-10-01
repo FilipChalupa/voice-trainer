@@ -176,6 +176,136 @@ export class Recorder {
     return { wav: encodeWav(resampled, TARGET_SAMPLE_RATE), samples: resampled, sampleRate: TARGET_SAMPLE_RATE };
   }
 
+  /**
+   * Keeps the microphone open and hands over one segment per spoken stretch: speech that was followed by
+   * ``silenceMs`` of quiet. ``prerollMs`` before the detected onset is included so soft starts are not clipped.
+   * ``onLevel`` reports the level, the noise floor and whether speech is being collected. Returns a stop function.
+   */
+  async flow(
+    onSegment: (segment: { wav: Blob; samples: Float32Array; seconds: number; snrDb: number }) => void,
+    onLevel: (info: { rms: number; peak: number; noise: number; speaking: boolean }) => void,
+    options: { silenceMs?: number; minSeconds?: number; maxSeconds?: number; prerollMs?: number } = {},
+  ): Promise<() => void> {
+    await this.init(this.deviceId, this.agc);
+    const context = this.context!;
+    if (context.state === "suspended") await context.resume();
+    const sr = context.sampleRate;
+    const source = context.createMediaStreamSource(this.stream!);
+    const silenceFrames = Math.ceil(((options.silenceMs ?? 700) / 1000) * sr);
+    const minFrames = Math.ceil((options.minSeconds ?? 0.8) * sr);
+    const maxFrames = Math.ceil((options.maxSeconds ?? 20) * sr);
+    const prerollFrames = Math.ceil(((options.prerollMs ?? 300) / 1000) * sr);
+    const preroll: Float32Array[] = [];
+    let prerollLength = 0;
+    let chunks: Float32Array[] = [];
+    let collected = 0;
+    let speaking = false;
+    let silentFrames = 0;
+    let noiseFloor = 0.003;
+    let floorSamples = 0;
+    let speechRms = 0;
+    let stopped = false;
+
+    const emit = () => {
+      // drop the trailing quiet beyond 250 ms, keep the rest
+      const keepSilence = Math.min(silentFrames, Math.ceil(0.25 * sr));
+      const total = Math.max(0, collected - (silentFrames - keepSilence));
+      const merged = new Float32Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        const remaining = total - offset;
+        if (remaining <= 0) break;
+        merged.set(remaining >= chunk.length ? chunk : chunk.subarray(0, remaining), offset);
+        offset += chunk.length;
+      }
+      chunks = [];
+      collected = 0;
+      speaking = false;
+      silentFrames = 0;
+      const snrDb = 20 * Math.log10(Math.max(speechRms, 1e-6) / Math.max(noiseFloor, 1e-6));
+      speechRms = 0;
+      if (total < minFrames) return;
+      void resample(merged, sr, TARGET_SAMPLE_RATE).then((resampled) => {
+        if (!stopped) onSegment({ wav: encodeWav(resampled, TARGET_SAMPLE_RATE), samples: resampled, seconds: resampled.length / TARGET_SAMPLE_RATE, snrDb });
+      });
+    };
+
+    const push = (data: Float32Array) => {
+      if (stopped) return;
+      let sum = 0;
+      let peak = 0;
+      for (let i = 0; i < data.length; i++) {
+        const v = data[i];
+        sum += v * v;
+        if (Math.abs(v) > peak) peak = Math.abs(v);
+      }
+      const rms = Math.sqrt(sum / data.length);
+      if (floorSamples < sr * 0.3) {
+        noiseFloor = Math.max(noiseFloor, rms);
+        floorSamples += data.length;
+      } else if (!speaking && rms < noiseFloor * 2) {
+        noiseFloor = noiseFloor * 0.97 + rms * 0.03;
+      }
+      const threshold = Math.max(0.012, noiseFloor * 3.5);
+      const loud = rms > threshold;
+      if (!speaking) {
+        preroll.push(data);
+        prerollLength += data.length;
+        while (prerollLength - preroll[0].length > prerollFrames) prerollLength -= preroll.shift()!.length;
+        if (loud) {
+          speaking = true;
+          chunks = [...preroll];
+          collected = prerollLength;
+          preroll.length = 0;
+          prerollLength = 0;
+          silentFrames = 0;
+          speechRms = rms;
+        }
+      } else {
+        chunks.push(data);
+        collected += data.length;
+        if (loud) {
+          silentFrames = 0;
+          speechRms = Math.max(speechRms, rms);
+        } else {
+          silentFrames += data.length;
+        }
+        if ((silentFrames >= silenceFrames && collected >= minFrames) || collected >= maxFrames) emit();
+      }
+      onLevel({ rms, peak, noise: noiseFloor, speaking });
+    };
+
+    let cleanup: () => void;
+    if (context.audioWorklet && this.workletUrl) {
+      const node = new AudioWorkletNode(context, "capture-processor");
+      node.port.onmessage = (e) => push(e.data as Float32Array);
+      source.connect(node);
+      const sink = context.createGain();
+      sink.gain.value = 0;
+      node.connect(sink).connect(context.destination);
+      cleanup = () => {
+        node.port.onmessage = null;
+        source.disconnect();
+        node.disconnect();
+        sink.disconnect();
+      };
+    } else {
+      const processor = context.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (e) => push(e.inputBuffer.getChannelData(0).slice(0));
+      source.connect(processor);
+      processor.connect(context.destination);
+      cleanup = () => {
+        processor.onaudioprocess = null;
+        source.disconnect();
+        processor.disconnect();
+      };
+    }
+    return () => {
+      stopped = true;
+      cleanup();
+    };
+  }
+
   close(): void {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;

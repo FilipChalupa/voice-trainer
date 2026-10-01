@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from .config import BASE_DIR, DATA_DIR, PROMPTS_DIR, VOICES_DIR, Voice, list_voices, load_settings
+from .config import BASE_DIR, DATA_DIR, PROMPTS_DIR, Voice, list_voices, load_settings
 
 router = APIRouter(prefix="/api", tags=["storage"])
 _cache: dict[str, Any] = {"at": 0.0, "value": None}

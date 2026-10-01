@@ -265,9 +265,11 @@ class JobManager:
     @staticmethod
     def _require_gpu_free() -> None:
         from .importer import transcriber
+        from .verify import verifier
 
         if transcriber.is_running():
             raise HTTPException(409, {"code": "import_running", "message": "A recording is being transcribed; start training afterwards"})
+        verifier.stop()  # the flow-mode checker keeps Whisper on the GPU only between requests; training has priority
 
     def cancel(self) -> dict[str, Any]:
         if not self.is_running():
