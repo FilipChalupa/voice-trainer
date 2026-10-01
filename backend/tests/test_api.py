@@ -171,6 +171,19 @@ def test_storage_overview_and_cleanup():
     assert client.post("/api/storage/clear-cache").json()["freed"] == 0
 
 
+def test_redo_puts_the_sentence_first_even_when_it_is_a_custom_prompt():
+    text = "Věta, kterou chci namluvit znovu a lépe."
+    client.post("/api/prompts/custom", json={"text": text})  # it is a custom prompt already, like paragraphs are
+    rec = client.post("/api/recordings", data={"text": text, "prompt_id": client.get("/api/prompts?count=1").json()["items"][0]["id"]}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    client.post(f"/api/prompts/{rec['prompt_id']}/skip")  # even a skipped one comes back
+    res = client.post(f"/api/recordings/{rec['id']}/redo")
+    assert res.status_code == 200 and res.json()["text"] == text
+    assert client.get("/api/prompts?count=1").json()["items"][0]["text"] == text
+    assert all(r["id"] != rec["id"] for r in client.get("/api/recordings").json()["items"])
+    assert client.post(f"/api/recordings/{rec['id']}/restore").status_code == 200
+    client.delete(f"/api/recordings/{rec['id']}")
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False

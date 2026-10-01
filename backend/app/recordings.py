@@ -258,6 +258,24 @@ def delete_recording(rid: str):
     return {"deleted": rid, "restorable": True}
 
 
+@router.post("/recordings/{rid}/redo")
+def redo_recording(rid: str):
+    """Record the sentence again: the take goes to the trash and its sentence comes up next."""
+    _check_id(rid)
+    voice = require_voice()
+    with _lock:
+        index = load_index(voice)
+        entry = index.get(rid)
+        if entry is None:
+            raise HTTPException(404, {"code": "not_found", "message": "Recording not found"})
+        text = entry.get("text", "")
+        _to_trash(voice, rid)
+        index.pop(rid, None)
+        save_index(voice, index)
+    pid = prompts.queue_front(voice, text)
+    return {"deleted": rid, "prompt_id": pid, "text": text, "restorable": True}
+
+
 @router.post("/recordings/{rid}/restore")
 def restore_recording(rid: str):
     _check_id(rid)

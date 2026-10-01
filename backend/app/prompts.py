@@ -317,6 +317,20 @@ def next_prompts(voice: Voice, recorded_ids: set[str], count: int = 5) -> dict[s
     }
 
 
+def queue_front(voice: Voice, text: str) -> str:
+    """Puts one sentence at the very front of the reading queue (added as a custom prompt if it is not one yet,
+    moved if it is) and clears a skip of it. Returns the prompt id."""
+    pid = prompt_id(text)
+    existing = [p for p in load_custom(voice) if p["id"] != pid]
+    custom_path(voice).write_text(json.dumps([{"id": pid, "text": text}] + existing, ensure_ascii=False, indent=1))
+    settings = load_settings(voice)
+    skipped = [x for x in (settings.get("skipped_prompts") or []) if x != pid]
+    if len(skipped) != len(settings.get("skipped_prompts") or []):
+        settings["skipped_prompts"] = skipped
+        write_settings(voice, settings)
+    return pid
+
+
 def skip_prompt(voice: Voice, pid: str) -> None:
     settings = load_settings(voice)
     skipped = list(settings.get("skipped_prompts") or [])

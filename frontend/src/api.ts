@@ -262,6 +262,7 @@ export const api = {
     return request<Recording>("/api/recordings", { method: "POST", body: form });
   },
   updateRecording: (id: string, text: string) => request<Recording>(`/api/recordings/${id}`, json("PUT", { text })),
+  redoRecording: (id: string) => request<{ deleted: string; prompt_id: string; text: string }>(`/api/recordings/${id}/redo`, { method: "POST" }),
   reviewRecording: (id: string, text: string | null) => request<Recording>(`/api/recordings/${id}`, json("PUT", { reviewed: true, ...(text !== null ? { text } : {}) })),
   deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
   restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),

@@ -22,9 +22,8 @@ export function useReview(recordings: Recording[], refresh: () => Promise<void>,
   const redo = useCallback(
     async (rec: Recording) => {
       try {
-        // the sentence goes to the front of the queue as a custom prompt and the take is dropped
-        await api.addCustomPrompts(rec.text);
-        await api.deleteRecording(rec.id);
+        // the take goes to the trash and its sentence comes up next (one server call, nothing half done)
+        await api.redoRecording(rec.id);
         await refresh();
         onChanged();
       } catch (e) {

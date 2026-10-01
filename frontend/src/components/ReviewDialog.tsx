@@ -78,7 +78,7 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
     } else if (e.ctrlKey && e.key === "Delete") {
       e.preventDefault();
       remove();
-    } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "r") {
+    } else if (e.ctrlKey && e.key.toLowerCase() === "m") {
       e.preventDefault();
       redo();
     }
