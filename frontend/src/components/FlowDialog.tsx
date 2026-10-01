@@ -100,7 +100,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
   const start = useCallback(async () => {
     try {
       await recorder.init(deviceId || undefined, agc);
-      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs, minSeconds: 0.8, maxSeconds, prerollMs: 400 });
+      stopRef.current = await recorder.flow(handleSegment, setLevel, { silenceMs, minSeconds: 0.4, maxSeconds: Math.max(maxSeconds, 28), prerollMs: 400 });
     } catch (e) {
       onError(errorText(t, e));
       setPhase("paused");

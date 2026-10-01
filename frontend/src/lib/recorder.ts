@@ -87,7 +87,7 @@ export class Recorder {
     let collected = 0;
     let speechSeen = false;
     let silentFrames = 0;
-    let noiseFloor = 0.003;
+    let noiseFloor = 0.001;
     let floorSamples = 0;
     let stopRequested = false;
     const started = performance.now();
@@ -107,14 +107,15 @@ export class Recorder {
         if (Math.abs(v) > peak) peak = Math.abs(v);
       }
       const rms = Math.sqrt(sum / data.length);
-      // noise floor from the first ~150 ms (before the speaker starts), then track quiet chunks slowly
-      if (floorSamples < context.sampleRate * 0.15) {
-        noiseFloor = Math.max(noiseFloor, rms);
+      // noise floor = the quietest chunk of the first 300 ms (the person may start talking at once), then it
+      // follows quiet chunks slowly
+      if (floorSamples < context.sampleRate * 0.3) {
+        noiseFloor = floorSamples === 0 ? Math.max(rms, 0.0005) : Math.max(Math.min(noiseFloor, rms), 0.0005);
         floorSamples += data.length;
       } else if (rms < noiseFloor * 1.5) {
         noiseFloor = noiseFloor * 0.98 + rms * 0.02;
       }
-      const speechThreshold = Math.max(0.012, noiseFloor * 3.5);
+      const speechThreshold = Math.max(0.006, noiseFloor * 3.5);
       if (rms > speechThreshold) {
         speechSeen = true;
         silentFrames = 0;
