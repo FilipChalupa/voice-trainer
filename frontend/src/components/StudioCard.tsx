@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, ListItemIcon, ListItemText, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Typography, useTheme } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, LinearProgress, ListItemIcon, ListItemText, Menu, MenuItem, Snackbar, Stack, Switch, TextField, Tooltip, Typography, useTheme } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
 import StopIcon from "@mui/icons-material/Stop";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
@@ -68,6 +68,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [autoPlay, setAutoPlay] = useState(() => readPref("autoplay") === "1");
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
   const [deviceId, setDeviceId] = useState(() => readPref("mic") ?? "");
+  const [agc, setAgc] = useState(() => readPref("agc") === "1");
   const [playing, setPlaying] = useState<{ id: string; progress: number } | null>(null);
   const [undo, setUndo] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
@@ -86,6 +87,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
 
   useEffect(() => writePref("autoplay", autoPlay ? "1" : "0"), [autoPlay]);
   useEffect(() => writePref("mic", deviceId), [deviceId]);
+  useEffect(() => writePref("agc", agc ? "1" : "0"), [agc]);
   // a remembered microphone that is no longer plugged in falls back to the default
   useEffect(() => {
     if (deviceId && devices.length && !devices.some((d) => d.deviceId === deviceId)) setDeviceId("");
@@ -166,7 +168,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     setLastPeaks(null);
     try {
       setPhase("prepare");
-      await recorderRef.current.init(deviceId || undefined);
+      await recorderRef.current.init(deviceId || undefined, agc);
       if (devices.length === 0) Recorder.listDevices().then(setDevices).catch(() => undefined);
       await new Promise((r) => setTimeout(r, 250));
       setPhase("recording");
@@ -199,7 +201,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       setPhase("idle");
       busyRef.current = false;
     }
-  }, [autoPlay, current?.id, deviceId, devices.length, disabled, onChanged, onError, phase, playOne, refresh, stopPlayback, t, text, voice.max_record_seconds]);
+  }, [agc, autoPlay, current?.id, deviceId, devices.length, disabled, onChanged, onError, phase, playOne, refresh, stopPlayback, t, text, voice.max_record_seconds]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -416,6 +418,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
               ))}
             </Menu>
             <FormControlLabel control={<Switch checked={autoPlay} onChange={(e) => setAutoPlay(e.target.checked)} />} label={t("studio.autoplay")} />
+            <Tooltip title={t("studio.agcHint")}>
+              <FormControlLabel control={<Switch checked={agc} onChange={(e) => setAgc(e.target.checked)} disabled={busy} />} label={t("studio.agc")} />
+            </Tooltip>
             <TextField select size="small" label={t("studio.mic")} value={deviceId} onChange={(e) => setDeviceId(e.target.value)} sx={{ minWidth: 200 }} disabled={busy}>
               <MenuItem value="">{t("studio.micDefault")}</MenuItem>
               {devices.map((d) => (
@@ -454,7 +459,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
         }}
         onError={onError}
       />
-      <MicCheckDialog open={micCheckOpen} recorder={recorderRef.current} deviceId={deviceId} sentence={text || t("mic.fallbackSentence")} recordings={recordings} onClose={() => setMicCheckOpen(false)} onError={onError} />
+      <MicCheckDialog open={micCheckOpen} recorder={recorderRef.current} deviceId={deviceId} agc={agc} sentence={text || t("mic.fallbackSentence")} recordings={recordings} onClose={() => setMicCheckOpen(false)} onError={onError} />
       <ReviewDialog open={reviewOpen} queue={review.queue} onClose={() => setReviewOpen(false)} onApprove={review.approve} onDelete={remove} onRedo={review.redo} />
 
       <Dialog open={customOpen} onClose={() => setCustomOpen(false)} fullWidth maxWidth="sm">

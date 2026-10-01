@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CardHeader, Chip, Collapse, LinearProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CardHeader, Chip, Collapse, FormControlLabel, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
 import ModelTrainingIcon from "@mui/icons-material/ModelTraining";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
@@ -40,7 +40,7 @@ const STATUS_COLOR: Record<TrainingState["status"], "default" | "info" | "succes
   interrupted: "warning",
 };
 const STAGES = new Set(["checking_base", "downloading_base", "preparing", "training", "stopping", "exporting", "done", "failed", "cancelled", "interrupted"]);
-const FIELDS: { key: keyof TrainingParams; step: number; min: number }[] = [
+const FIELDS: { key: Exclude<keyof TrainingParams, "quiet_pauses">; step: number; min: number }[] = [
   { key: "epochs", step: 50, min: 10 },
   { key: "batch_size", step: 2, min: 2 },
   { key: "validation_every", step: 5, min: 1 },
@@ -167,6 +167,9 @@ export function TrainingCard({ state, log, voice, report, defaults, system, onVo
                   <TextField key={f.key} type="number" size="small" label={t(`train.f.${f.key}` as TKey)} helperText={t(`train.h.${f.key}` as TKey)} value={params[f.key]} onChange={(e) => setParams({ ...params, [f.key]: Number(e.target.value) })} inputProps={{ step: f.step, min: f.min }} />
                 ))}
               </Box>
+              <Tooltip title={t("train.h.quiet_pauses")}>
+                <FormControlLabel sx={{ mt: 1 }} control={<Switch checked={params.quiet_pauses} onChange={(e) => setParams({ ...params, quiet_pauses: e.target.checked })} />} label={t("train.f.quiet_pauses")} />
+              </Tooltip>
               <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
                 <Button size="small" variant="contained" onClick={saveParams} disabled={busy || !paramsDirty}>
                   {t("train.saveParams")}

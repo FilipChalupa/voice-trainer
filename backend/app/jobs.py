@@ -33,6 +33,17 @@ RUNNING = ("downloading", "preparing", "training", "exporting")
 STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clean stop
 
 
+def prepare_training_audio(voice: Voice, items: list[dict[str, Any]], target: Path) -> None:
+    import soundfile as sf
+
+    from .audio import quiet_pauses
+
+    target.mkdir(parents=True, exist_ok=True)
+    for r in items:
+        data, sr = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
+        sf.write(str(target / f"{r['id']}.wav"), quiet_pauses(data[:, 0], sr), sr, subtype="PCM_16")
+
+
 class JobManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -184,6 +195,11 @@ class JobManager:
         lines = [f"{r['id']}.wav|{r['text'].replace('|', ' ')}" for r in items]
         (job_dir / "dataset" / "metadata.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
         training = dict(settings["training"])
+        audio_dir = voice.recordings_dir
+        if training.get("quiet_pauses", True):
+            # the takes go in with their pauses faded down; the originals stay as they are
+            audio_dir = job_dir / "dataset" / "audio"
+            prepare_training_audio(voice, items, audio_dir)
         job = {
             "job_id": job_id,
             "voice_id": voice.id,
@@ -198,7 +214,7 @@ class JobManager:
             "max_epochs": int(training["epochs"]),
             "recordings": len(items),
             "minutes": round(minutes, 2),
-            "audio_dir": str(voice.recordings_dir),
+            "audio_dir": str(audio_dir),
             "job_dir": str(job_dir),
             "base_checkpoint": str(base.base_path(language)),
             "test_sentences": [apply_lexicon(t, settings.get("lexicon") or {}) for t in LANGUAGES[language]["test_sentences"]],

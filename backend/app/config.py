@@ -92,6 +92,7 @@ DEFAULT_TRAINING = {
     "preview_every": 50,  # epochs between audible previews (multiple of validation_every)
     "learning_rate": 0.0002,
     "patience": 5,  # validations without a better val_mel before the run stops by itself (0 = never)
+    "quiet_pauses": True,  # fade the room noise down inside the pauses of the takes used for training
 }
 
 MIN_MINUTES = 5.0  # hard minimum to start training
@@ -199,7 +200,8 @@ def save_settings(voice: Voice, update: dict[str, Any]) -> dict[str, Any]:
     if "training" in update and isinstance(update["training"], dict):
         for key, default in DEFAULT_TRAINING.items():
             if key in update["training"] and update["training"][key] is not None:
-                settings["training"][key] = type(default)(update["training"][key])
+                value = update["training"][key]
+                settings["training"][key] = bool(value) if isinstance(default, bool) else type(default)(value)
         t = settings["training"]
         t["epochs"] = max(10, min(20000, t["epochs"]))
         t["batch_size"] = max(2, min(64, t["batch_size"]))

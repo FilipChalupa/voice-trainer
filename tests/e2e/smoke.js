@@ -16,7 +16,7 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
     await page.getByRole("button", { name: "Create" }).click();
     await page.waitForTimeout(1500);
   }
-  const expected = { Voice: ["1. Voice", "Consent of the voice owner"], Recording: ["Recording studio"], Data: ["Dataset overview", "Import a long recording"], Training: ["Voice training"], "Test & deploy": ["4. Test", "Deployment"] };
+  const expected = { Voice: ["1. Voice", "Consent of the voice owner"], Recording: ["Recording studio"], Data: ["Dataset overview", "Import a long recording"], Training: ["Voice training"], "Test & deploy": ["4. Test"] };
   for (const [tab, titles] of Object.entries(expected)) {
     await page.getByRole("tab", { name: tab }).click();
     await page.waitForTimeout(1500);

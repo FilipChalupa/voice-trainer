@@ -24,21 +24,25 @@ export class Recorder {
   private workletUrl: string | null = null;
 
   private deviceId: string | undefined;
+  private agc = false;
 
-  async init(deviceId?: string): Promise<void> {
-    if (this.stream && deviceId === this.deviceId) return;
+  /** ``agc``: the browser's automatic gain control. Off by default: it raises the gain in quiet passages and
+   *  the room noise with it, and the level then differs between takes. */
+  async init(deviceId?: string, agc = false): Promise<void> {
+    if (this.stream && deviceId === this.deviceId && agc === this.agc) return;
     if (this.stream) this.close();
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("mic_unsupported");
     }
     this.deviceId = deviceId;
+    this.agc = agc;
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: deviceId ? { exact: deviceId } : undefined,
         channelCount: 1,
         echoCancellation: false,
         noiseSuppression: false,
-        autoGainControl: true,
+        autoGainControl: agc,
       },
     });
     this.context = new AudioContext();
@@ -72,7 +76,7 @@ export class Recorder {
     onLevel?: LevelCallback,
     options: { silenceMs?: number; minSeconds?: number; stopTrimMs?: number; onStart?: (stop: () => void) => void } = {},
   ): Promise<{ wav: Blob; samples: Float32Array; sampleRate: number }> {
-    await this.init(this.deviceId);
+    await this.init(this.deviceId, this.agc);
     const context = this.context!;
     if (context.state === "suspended") await context.resume();
     const source = context.createMediaStreamSource(this.stream!);

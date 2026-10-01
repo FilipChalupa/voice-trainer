@@ -120,3 +120,23 @@ def test_misspelled_sentences_are_dropped_from_the_corpus():
     lines = ["Ale protože žije jen v bytě, až tolik příežitostí k pohybu nemá.", "Karolína vytahuje sluneční brýle a nasazuje si je na nos."]
     assert prompts.filter_sentences(lines, "cs") == [lines[1]]
     assert len(prompts.filter_sentences(lines, "cs", spell=False)) == 2
+
+
+def test_quiet_pauses_fades_long_pauses_only():
+    from app.audio import quiet_pauses
+
+    sr = 22050
+    rng = np.random.default_rng(2)
+    noise = (0.005 * rng.standard_normal(int(5.0 * sr))).astype(np.float32)
+    t = np.arange(int(1.5 * sr)) / sr
+    word = (0.3 * np.sin(2 * np.pi * 200 * t)).astype(np.float32)
+    audio = noise.copy()
+    audio[int(0.5 * sr) : int(0.5 * sr) + len(word)] += word  # 0.5-2.0 s speech
+    audio[int(2.08 * sr) : int(2.08 * sr) + len(word)] += word  # a 80 ms gap: stays
+    audio[int(4.3 * sr) : int(4.3 * sr) + int(0.5 * sr)] += word[: int(0.5 * sr)]  # a 0.7 s pause before it: faded
+    out = quiet_pauses(audio, sr)
+    rms = lambda a, b: float(np.sqrt((out[int(a * sr) : int(b * sr)] ** 2).mean()) / np.sqrt((audio[int(a * sr) : int(b * sr)] ** 2).mean()))
+    assert 0.95 < rms(0.8, 1.8) < 1.05  # speech untouched
+    assert 0.8 < rms(2.0, 2.08) < 1.05  # the short gap untouched
+    assert rms(3.7, 4.2) < 0.2  # the long pause down by ~18 dB
+    assert rms(0.0, 0.4) < 0.2  # leading silence too

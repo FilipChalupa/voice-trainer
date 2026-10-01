@@ -5,6 +5,7 @@ export type TrainingParams = {
   preview_every: number;
   learning_rate: number;
   patience: number;
+  quiet_pauses: boolean;
 };
 
 export type Consent = { text: string; owner: string; at: string; duration: number };

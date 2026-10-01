@@ -165,8 +165,11 @@ def main() -> None:
     torch.backends.cudnn.deterministic = False
     ckpt_dir = os.environ.get("VT_CHECKPOINT_DIR", "checkpoints")
     callbacks = [
-        # best reconstruction + always the latest (needed to resume / continue)
-        ModelCheckpoint(dirpath=ckpt_dir, monitor="val_mel", mode="min", save_top_k=1, save_last=True, filename="best_mel-epoch={epoch}", auto_insert_metric_name=False),
+        # the latest state at every validation (to resume / continue from). Not ``save_last=True`` of the best-mel
+        # callback: Lightning refreshes that copy only when a new best is saved, so it would lag behind.
+        ModelCheckpoint(dirpath=ckpt_dir, monitor=None, save_top_k=1, filename="last", auto_insert_metric_name=False, enable_version_counter=False),
+        # best reconstruction
+        ModelCheckpoint(dirpath=ckpt_dir, monitor="val_mel", mode="min", save_top_k=1, filename="best_mel-epoch={epoch}", auto_insert_metric_name=False),
         # best perceived quality (UTMOS); silently inactive when the predictor cannot be loaded
         OptionalMetricCheckpoint(dirpath=ckpt_dir, monitor="val_mos", mode="max", save_top_k=1, save_last=False, filename="best_mos-epoch={epoch}", auto_insert_metric_name=False),
         ProgressCallback(),

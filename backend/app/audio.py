@@ -171,3 +171,46 @@ def analyze(path, text: str | None = None) -> dict:
             "issues": issues,
         },
     }
+
+
+def quiet_pauses(audio: np.ndarray, sr: int, min_pause_ms: int = 120, attenuation_db: float = 18.0, ramp_ms: int = 40, keep_ms: int = 40) -> np.ndarray:
+    """Turns the room noise down inside the pauses of a take and leaves the speech untouched.
+
+    A model trained on takes with audible pauses learns that silence hisses. Spectral denoisers also eat the
+    noise-like consonants, so this only fades pauses longer than ``min_pause_ms`` down by ``attenuation_db``,
+    keeping ``keep_ms`` of context around the speech and ``ramp_ms`` long fades.
+    """
+    frame = max(1, sr // 100)
+    n = audio.shape[0]
+    if n < frame * 20:
+        return audio
+    rms = np.sqrt((audio[: (n // frame) * frame].reshape(-1, frame) ** 2).mean(axis=1) + 1e-12)
+    peak = float(rms.max())
+    if peak < 1e-3:
+        return audio
+    noise = float(np.percentile(rms, 10))
+    threshold = max(peak * 10 ** (-30 / 20.0), noise * 10 ** (15 / 20.0), 0.004)
+    quiet = rms <= threshold
+    gain = np.ones(len(rms), dtype=np.float32)
+    keep, min_len = keep_ms // 10, min_pause_ms // 10
+    i = 0
+    while i < len(quiet):
+        if not quiet[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(quiet) and quiet[j]:
+            j += 1
+        # the edges of the take are pauses too (no speech to keep context for on the outer side)
+        lo = i if i == 0 else i + keep
+        hi = j if j == len(quiet) else j - keep
+        if hi - lo >= min_len:
+            gain[lo:hi] = 10 ** (-attenuation_db / 20.0)
+        i = j
+    # frame gains -> smooth per-sample envelope
+    env = np.repeat(gain, frame)
+    env = np.concatenate([env, np.full(n - len(env), env[-1], dtype=np.float32)]) if len(env) < n else env[:n]
+    ramp = max(1, int(sr * ramp_ms / 1000))
+    kernel = np.ones(ramp, dtype=np.float32) / ramp
+    env = np.convolve(env, kernel, mode="same").astype(np.float32)
+    return (audio * env).astype(np.float32)
