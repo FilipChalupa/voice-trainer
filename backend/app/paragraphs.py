@@ -36,7 +36,7 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
         {
             "id": "recept",
             "title": "Recept na polévku",
-            "text": "Nejdřív si nakrájejte cibuli a osmahněte ji na másle dozlatova. Přidejte tři mrkve, dva brambory a kousek celeru. Zalijte literm vývaru a vařte dvacet minut, dokud zelenina nezměkne. Potom polévku rozmixujte a dochuťte solí, pepřem a špetkou muškátového oříšku. Podávejte s opečeným chlebem. Kdo má rád, může přidat lžíci smetany.",
+            "text": "Nejdřív si nakrájejte cibuli a osmahněte ji na másle dozlatova. Přidejte tři mrkve, dva brambory a kousek celeru. Zalijte litrem vývaru a vařte dvacet minut, dokud zelenina nezměkne. Potom polévku rozmixujte a dochuťte solí, pepřem a špetkou muškátového oříšku. Podávejte s opečeným chlebem. Kdo má rád, může přidat lžíci smetany.",
         },
         {
             "id": "vylet",
@@ -127,6 +127,41 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "id": "otazky",
             "title": "Otázky a zvolání",
             "text": "Opravdu jsi to udělal sám? To snad není možné! Kde jsi nechal klíče od auta? Pojď sem, rychle! Kolik to stálo, dvě stě, nebo tři sta? Nevěřím ti ani slovo. Proč jsi mi to neřekl dřív? Pozor, schod! Mohl bys mi prosím podat tu knihu? Výborně, přesně tohle jsem potřeboval. Jak dlouho ještě budeme čekat? Neboj se, všechno dobře dopadne.",
+        },
+        {
+            "id": "q-asistent-pta",
+            "title": "Otázky: asistent se ptá",
+            "text": "Mám zhasnout světlo v obýváku? Chcete, abych zamkl vchodové dveře? Mám vám zítra ráno připomenout schůzku? Je v ložnici příliš teplo? Mám stáhnout rolety v celém domě? Přejete si pustit ranní zprávy? Mám zapnout topení v koupelně? Chcete přidat mléko na nákupní seznam? Mám budík nastavit i na sobotu? Slyšíte mě dobře? Mám tu zprávu přečíst ještě jednou? Opravdu chcete vypnout všechna světla?",
+        },
+        {
+            "id": "q-na-asistenta",
+            "title": "Otázky: ptám se asistenta",
+            "text": "Kolik je teď venku stupňů? Kdy mi jede první ranní autobus? Kde jsem nechal nabíječku od telefonu? Proč svítí kontrolka na pračce? Jak dlouho ještě poběží myčka? Kdo dnes zvonil u dveří? Co mám zítra v kalendáři? Kolik elektřiny jsme spotřebovali tento týden? Kdy naposledy někdo zaléval kytky? Jaká je teplota v dětském pokoji? Které okno zůstalo otevřené? Kam jsem si uložil ten recept na guláš?",
+        },
+        {
+            "id": "q-vyber",
+            "title": "Otázky: výběr ze dvou",
+            "text": "Chcete čaj, nebo kávu? Pojedeme vlakem, nebo autem? Mám to poslat dnes, nebo až zítra? Zůstaneme doma, nebo půjdeme ven? Dáte si polévku, nebo rovnou hlavní jídlo? Platíte kartou, nebo hotově? Sejdeme se v pět, nebo raději v šest? Mám rozsvítit lampu, nebo stropní světlo? Bude to stačit takhle, nebo mám přidat? Voláš ty jemu, nebo zavolá on tobě? Půjdeme pěšky, nebo počkáme na tramvaj? Chceš to slyšet hned, nebo až po večeři?",
+        },
+        {
+            "id": "q-lekar",
+            "title": "Otázky: u lékaře",
+            "text": "Dobrý den, co vás k nám přivádí? Už tři dny mě bolí v krku. Máte také teplotu? Večer mívám kolem třiceti osmi. Berete nějaké léky? Jenom kapky proti kašli. Jste na něco alergický? Pokud vím, tak na nic. Kdy jste byl naposledy na prohlídce? Asi před dvěma lety. Můžete se zhluboka nadechnout? Bolí to, když polykáte? Předepíšu vám antibiotika, ano? Přijdete se ukázat za týden?",
+        },
+        {
+            "id": "q-cesta",
+            "title": "Otázky: na cestě",
+            "text": "Promiňte, jak se dostanu na nádraží? Jděte rovně a u lékárny zahněte doleva. Je to odtud daleko? Pěšky asi deset minut. Jede tam nějaký autobus? Jede, číslo dvanáct, staví hned za rohem. Kde si mohu koupit jízdenku? V trafice, nebo přímo u řidiče. Stihnu ještě vlak v půl čtvrté? Když si pospíšíte, tak určitě. Z kterého nástupiště odjíždí? To vám bohužel nepovím. A nevíte, jestli má zpoždění? Zeptejte se raději u pokladny.",
+        },
+        {
+            "id": "q-proc",
+            "title": "Otázky: zvídavé dítě",
+            "text": "Proč je nebe modré? Protože vzduch rozptyluje sluneční světlo. A proč je večer červené? Protože světlo letí delší cestou. Kam chodí slunce spát? Nikam, to se jenom otáčí Země. Kdo zhasíná hvězdy? Nikdo, ve dne je jen přesvítí slunce. Jak vysoko létají ptáci? Někteří výš než letadla. Co jedí ryby v zimě? Skoro nic, pod ledem jen odpočívají. Proč musím jít spát, když nejsem unavený? Protože zítra vstáváme brzy. A můžu si ještě chvíli číst?",
+        },
+        {
+            "id": "q-dovetky",
+            "title": "Otázky: ujištění a údiv",
+            "text": "To je tvoje kolo, že ano? Zamkl jsi dveře, viď? Ty jsi tam vážně šel sám? On to opravdu řekl nahlas? Přijdete zítra, že jo? Tohle má být všechno? Vy jste se už viděli? Ona o tom vůbec nevěděla? Nezapomněl jsi na ty klíče, že ne? Takže se sejdeme v sedm? To myslíš vážně? A to vám nikdo neřekl?",
         },
     ],
     "en": [
@@ -239,6 +274,41 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "id": "questions",
             "title": "Questions and exclamations",
             "text": "Did you really do it yourself? That cannot be true! Where did you leave the car keys? Come here, quickly! How much was it, two hundred or three hundred? I do not believe a word of it. Why did you not tell me sooner? Mind the step! Could you pass me that book, please? Excellent, that is exactly what I needed. How much longer do we have to wait? Do not worry, everything will turn out fine.",
+        },
+        {
+            "id": "q-assistant-asks",
+            "title": "Questions: the assistant asks",
+            "text": "Shall I turn off the light in the living room? Do you want me to lock the front door? Shall I remind you of the meeting tomorrow morning? Is it too warm in the bedroom? Shall I lower the blinds in the whole house? Would you like the morning news? Shall I turn on the heating in the bathroom? Do you want milk on the shopping list? Should the alarm ring on Saturday too? Can you hear me well? Shall I read that message once more? Do you really want all the lights off?",
+        },
+        {
+            "id": "q-asking-assistant",
+            "title": "Questions: asking the assistant",
+            "text": "How many degrees is it outside now? When does my first morning bus leave? Where did I leave my phone charger? Why is the light on the washing machine blinking? How much longer will the dishwasher run? Who rang the doorbell today? What is in my calendar tomorrow? How much electricity did we use this week? When were the plants last watered? What is the temperature in the children's room? Which window was left open? Where did I save that stew recipe?",
+        },
+        {
+            "id": "q-choice",
+            "title": "Questions: a choice of two",
+            "text": "Would you like tea or coffee? Shall we go by train or by car? Should I send it today or tomorrow? Are we staying in or going out? Will you have soup or the main course straight away? Are you paying by card or in cash? Shall we meet at five or rather at six? Should I switch on the lamp or the ceiling light? Is this enough or shall I add more? Will you call him or will he call you? Shall we walk or wait for the tram? Do you want to hear it now or after dinner?",
+        },
+        {
+            "id": "q-doctor",
+            "title": "Questions: at the doctor's",
+            "text": "Good morning, what brings you here? My throat has been sore for three days. Do you have a temperature as well? Around thirty eight in the evenings. Are you taking any medicine? Only cough drops. Are you allergic to anything? Not as far as I know. When did you last have a check-up? About two years ago. Can you take a deep breath? Does it hurt when you swallow? I will prescribe antibiotics, all right? Will you come back in a week?",
+        },
+        {
+            "id": "q-directions",
+            "title": "Questions: on the way",
+            "text": "Excuse me, how do I get to the station? Go straight on and turn left at the pharmacy. Is it far from here? About ten minutes on foot. Is there a bus going there? Yes, number twelve, it stops just round the corner. Where can I buy a ticket? At the newsagent, or from the driver. Can I still catch the half past three train? If you hurry, certainly. Which platform does it leave from? I am afraid I cannot tell you. And do you know whether it is delayed? You had better ask at the ticket office.",
+        },
+        {
+            "id": "q-why",
+            "title": "Questions: a curious child",
+            "text": "Why is the sky blue? Because the air scatters the sunlight. And why is it red in the evening? Because the light travels a longer way. Where does the sun go to sleep? Nowhere, it is the Earth that turns. Who switches off the stars? Nobody, the sun just outshines them by day. How high do birds fly? Some fly higher than planes. What do fish eat in winter? Almost nothing, they rest under the ice. Why do I have to go to bed when I am not tired? Because we get up early tomorrow. And may I read a little longer?",
+        },
+        {
+            "id": "q-tags",
+            "title": "Questions: checking and surprise",
+            "text": "That is your bike, is it not? You locked the door, did you not? You really went there alone? He actually said that out loud? You are coming tomorrow, right? Is this supposed to be all? Have you two met already? She did not know about it at all? You did not forget the keys, did you? So we meet at seven? Are you serious about that? And nobody told you?",
         },
     ],
 }

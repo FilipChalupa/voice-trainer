@@ -200,6 +200,11 @@ def test_custom_batches_can_be_removed():
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False
+    from app.recordings import sentence_types
+
+    kinds = sentence_types([{"text": t, "duration": 6.0} for t in ("Je doma.", "Je doma?", "Kde je?", "Pozor!", "Když přišel,", "„Kdo to byl?“")])
+    assert {k: v["count"] for k, v in kinds.items()} == {"statement": 1, "question": 3, "exclamation": 1, "continuation": 1}
+    assert kinds["question"]["minutes"] == 0.3 and sum(v["count"] for v in report["sentence_types"].values()) == report["count"]
     payload = client.put("/api/voice", json={"training": {"epochs": 5, "batch_size": 999, "validation_every": 10, "preview_every": 25}}).json()
     training = payload["voice"]["training"]
     assert training["epochs"] == 10 and training["batch_size"] == 64 and training["preview_every"] == 20

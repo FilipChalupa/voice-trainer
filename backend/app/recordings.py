@@ -335,6 +335,20 @@ def post_skip(pid: str):
 
 
 # ----- dataset report --------------------------------------------------------------------
+def sentence_types(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    """How many takes end as a statement, a question, an exclamation or mid-sentence (comma, colon, semicolon).
+    The model learns the melody of each ending only from takes that have it."""
+    out = {k: {"count": 0, "minutes": 0.0} for k in ("statement", "question", "exclamation", "continuation")}
+    for r in items:
+        text = r["text"].rstrip(" \"'”“’)")
+        kind = "question" if text.endswith("?") else "exclamation" if text.endswith("!") else "continuation" if text.endswith((",", ";", ":", "–", "-")) else "statement"
+        out[kind]["count"] += 1
+        out[kind]["minutes"] += r["duration"] / 60.0
+    for v in out.values():
+        v["minutes"] = round(v["minutes"], 2)
+    return out
+
+
 def dataset_report(voice: Voice) -> dict[str, Any]:
     items = list_recordings(voice)
     settings = load_settings(voice)
@@ -358,6 +372,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "flagged": len(flagged),
         "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch")},
         "rare_letters": rare,
+        "sentence_types": sentence_types(items),
         "duration_histogram": buckets,
         "has_consent": has_consent(voice),
         "ready": has_consent(voice) and minutes >= MIN_MINUTES,

@@ -1,12 +1,19 @@
 import { useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, Tooltip, Typography } from "@mui/material";
 import DatasetIcon from "@mui/icons-material/Dataset";
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
 import { api, type DatasetReport, type ImportResult } from "../api";
-import { errorText, useI18n } from "../i18n";
+import { errorText, useI18n, type TKey } from "../i18n";
 
 /** What will go into training: amount of audio, warnings, letter coverage, length distribution. */
+const TYPES: { key: keyof DatasetReport["sentence_types"]; color: string }[] = [
+  { key: "statement", color: "#7e57c2" },
+  { key: "question", color: "#26a69a" },
+  { key: "exclamation", color: "#ffb300" },
+  { key: "continuation", color: "#42a5f5" },
+];
+
 type Props = { report: DatasetReport | null; disabled: boolean; onImported: () => void; onError: (message: string) => void };
 
 export function DatasetCard({ report, disabled, onImported, onError }: Props) {
@@ -63,6 +70,35 @@ export function DatasetCard({ report, disabled, onImported, onError }: Props) {
                   </Box>
                 ))}
               </Stack>
+            </Box>
+          )}
+          {report.count > 0 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t("ds.types")}
+              </Typography>
+              <Box sx={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", bgcolor: "action.hover", mt: 0.5 }}>
+                {TYPES.map(({ key, color }) => (
+                  <Tooltip key={key} title={`${t(`ds.type.${key}` as TKey)}: ${report.sentence_types[key].count}`}>
+                    <Box sx={{ width: `${(report.sentence_types[key].count / report.count) * 100}%`, bgcolor: color }} />
+                  </Tooltip>
+                ))}
+              </Box>
+              <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                {TYPES.map(({ key, color }) => (
+                  <Stack key={key} direction="row" spacing={0.5} alignItems="center">
+                    <Box sx={{ width: 10, height: 10, borderRadius: 5, bgcolor: color }} />
+                    <Typography variant="caption" color="text.secondary">
+                      {t(`ds.type.${key}` as TKey)} {report.sentence_types[key].count} ({Math.round((report.sentence_types[key].count / report.count) * 100)} %, {report.sentence_types[key].minutes.toFixed(1)} min)
+                    </Typography>
+                  </Stack>
+                ))}
+              </Stack>
+              {report.count >= 50 && report.sentence_types.question.count / report.count < 0.1 && (
+                <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
+                  {t("ds.fewQuestions", { n: report.sentence_types.question.count })}
+                </Typography>
+              )}
             </Box>
           )}
           {report.count > 0 && (

@@ -120,6 +120,7 @@ export type DatasetReport = {
   flagged: number;
   issues: Record<string, number>;
   rare_letters: string[];
+  sentence_types: Record<"statement" | "question" | "exclamation" | "continuation", { count: number; minutes: number }>;
   duration_histogram: number[];
   has_consent: boolean;
   ready: boolean;
