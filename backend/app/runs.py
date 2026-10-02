@@ -82,6 +82,7 @@ def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | N
         "recordings": job.get("recordings"),
         "training": job.get("training"),
         "max_epochs": job.get("max_epochs"),
+        "from_job": job.get("from_job"),
         "epoch": result.get("epoch"),
         "validation_last": (result.get("validation") or [None])[-1],
         "exports": exports,

@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from . import base
 from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, apply_lexicon, current_voice, list_voices, load_settings, now, slugify
@@ -31,6 +32,7 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOG_LINES = 600
 RUNNING = ("downloading", "preparing", "training", "exporting")
 STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clean stop
+WARMSTART_FILE = "warmstart.ckpt"  # an earlier run's checkpoint this run starts from (a hard link, removed afterwards)
 
 
 def prepare_training_audio(voice: Voice, items: list[dict[str, Any]], target: Path) -> None:
@@ -175,11 +177,18 @@ class JobManager:
         self._publish("log", {"line": line})
 
     # ----- lifecycle -----------------------------------------------------------
-    def start(self) -> dict[str, Any]:
+    def start(self, from_job: str | None = None) -> dict[str, Any]:
+        """Starts a new run on the current recordings. It begins from the published base voice, or with
+        ``from_job`` from the last checkpoint of an earlier run of this voice (continuing with more data)."""
         if self.is_running():
             raise HTTPException(409, {"code": "already_running", "message": "Training is already running"})
         self._require_gpu_free()
         voice = require_voice()
+        source: Path | None = None
+        if from_job:
+            source = find_job_dir(from_job) / "checkpoints" / "last.ckpt"
+            if source.parent.parent.parent != voice.jobs_dir or not source.exists():
+                raise HTTPException(409, {"code": "no_checkpoint", "message": "That run has no checkpoint to start from"})
         settings = load_settings(voice)
         if not has_consent(voice):
             raise HTTPException(400, {"code": "consent_required", "message": "Record the voice owner's consent before training"})
@@ -217,10 +226,17 @@ class JobManager:
             "audio_dir": str(audio_dir),
             "job_dir": str(job_dir),
             "base_checkpoint": str(base.base_path(language)),
+            "from_job": from_job or None,
             "test_sentences": [apply_lexicon(t, settings.get("lexicon") or {}) for t in LANGUAGES[language]["test_sentences"]],
             "created_at": now(),
         }
         (job_dir / "job.json").write_text(json.dumps(job, indent=2, ensure_ascii=False))
+        if source is not None:
+            # a hard link: no copy of 850 MB, and it survives the source run being pruned or deleted
+            try:
+                os.link(source, job_dir / WARMSTART_FILE)
+            except OSError:
+                shutil.copyfile(source, job_dir / WARMSTART_FILE)
         prune_jobs(voice)
         self._launch(job, resume=False)
         return self.snapshot()
@@ -333,7 +349,8 @@ class JobManager:
         if resume and last.exists():
             cmd += ["--ckpt_path", str(last)]
         else:
-            cmd += ["--model.warmstart_ckpt", job["base_checkpoint"]]
+            own = job_dir / WARMSTART_FILE
+            cmd += ["--model.warmstart_ckpt", str(own) if own.exists() else job["base_checkpoint"]]
         return cmd
 
     def _spawn(self, cmd: list[str], job: dict[str, Any]) -> int:
@@ -381,6 +398,8 @@ class JobManager:
             self._write_result(job_dir, "failed", error=str(exc))
         finally:
             self._proc = None
+            if (job_dir / "checkpoints" / "last.ckpt").exists():
+                (job_dir / WARMSTART_FILE).unlink(missing_ok=True)  # only needed until the run has its own checkpoint
             if self.state.get("status") != "done":
                 # voices exported by an earlier finished stretch of this run are still usable
                 exports = list_exports(job_dir, job["job_id"])
@@ -500,8 +519,14 @@ manager = JobManager()
 
 # ----- routes ---------------------------------------------------------------
 @router.post("/train")
-def start_training():
-    return manager.start()
+async def start_training(request: Request):
+    body: dict[str, Any] = {}
+    try:
+        if int(request.headers.get("content-length") or 0) > 0:
+            body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    return await run_in_threadpool(manager.start, str((body or {}).get("from_job") or "") or None)
 
 
 

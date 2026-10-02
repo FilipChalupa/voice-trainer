@@ -192,6 +192,7 @@ export type Job = {
   bundle_url: string | null;
   resumable: boolean;
   stopped_early: boolean;
+  from_job?: string | null;
   previews: number;
 };
 
@@ -298,7 +299,7 @@ export const api = {
   },
   base: () => request<{ items: BaseItem[] }>("/api/base"),
   downloadBase: (language: string) => request<unknown>(`/api/base/${language}/download`, { method: "POST" }),
-  startTraining: () => request<TrainingState>("/api/train", { method: "POST" }),
+  startTraining: (fromJob: string | null = null) => request<TrainingState>("/api/train", json("POST", fromJob ? { from_job: fromJob } : {})),
   resumeTraining: (extraEpochs = 0) => request<TrainingState>("/api/train/resume", json("POST", { extra_epochs: extraEpochs })),
   calibration: () => request<Calibration>("/api/train/calibration"),
   cancelTraining: () => request<TrainingState>("/api/train/cancel", { method: "POST" }),

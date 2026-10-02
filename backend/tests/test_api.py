@@ -249,6 +249,25 @@ def test_job_summary_previews_and_exports(tmp_path):
     assert job_summary(job_dir, running_job_id=job_dir.name)["status"] == "running"
 
 
+def test_fit_command_starts_from_an_earlier_run_when_its_checkpoint_is_linked(tmp_path):
+    from app.jobs import WARMSTART_FILE, manager
+
+    job_dir = tmp_path / "20260101_000000_new"
+    job_dir.mkdir()
+    job = {"job_dir": str(job_dir), "slug": "x", "audio_dir": str(tmp_path), "espeak_voice": "cs", "max_epochs": 300, "base_checkpoint": "/data/base/base.ckpt",
+           "training": {"batch_size": 16, "learning_rate": 0.0002, "validation_every": 10}}
+    cmd = manager._fit_command(job, resume=False)
+    assert cmd[cmd.index("--model.warmstart_ckpt") + 1] == "/data/base/base.ckpt"
+    (job_dir / WARMSTART_FILE).write_bytes(b"ckpt")
+    cmd = manager._fit_command(job, resume=False)
+    assert cmd[cmd.index("--model.warmstart_ckpt") + 1] == str(job_dir / WARMSTART_FILE)
+    (job_dir / "checkpoints").mkdir()
+    (job_dir / "checkpoints" / "last.ckpt").write_bytes(b"x")
+    cmd = manager._fit_command(job, resume=True)
+    assert "--ckpt_path" in cmd and "--model.warmstart_ckpt" not in cmd
+    assert client.post("/api/train", json={"from_job": "20990101_000000_nope"}).status_code in (404, 409)
+
+
 def test_export_variants_and_usage_text():
     from pathlib import Path
 

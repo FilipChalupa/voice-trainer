@@ -9,7 +9,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import IosShareIcon from "@mui/icons-material/IosShare";
-import { api, type BaseItem, type Calibration, type DatasetReport, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
+import { api, type BaseItem, type Calibration, type DatasetReport, type Job, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 import { AudioPlayer } from "./AudioPlayer";
 
@@ -22,6 +22,7 @@ type Props = {
   defaults: TrainingParams;
   system: SystemInfo | null;
   report: DatasetReport | null;
+  jobs: Job[];
   onVoices: (p: VoicesPayload) => void;
   onError: (message: string) => void;
   onFinished: () => void;
@@ -55,7 +56,7 @@ function duration(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)} h`;
 }
 
-export function TrainingCard({ state, log, voice, report, defaults, system, onVoices, onError, onFinished, onGo }: Props) {
+export function TrainingCard({ state, log, voice, report, jobs, defaults, system, onVoices, onError, onFinished, onGo }: Props) {
   const { t } = useI18n();
   const [showLog, setShowLog] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,6 +64,8 @@ export function TrainingCard({ state, log, voice, report, defaults, system, onVo
   const [extra, setExtra] = useState(200);
   const [base, setBase] = useState<BaseItem | null>(null);
   const [calibration, setCalibration] = useState<Calibration | null>(null);
+  const [fromJob, setFromJob] = useState(""); // "" = the base voice, otherwise an earlier run to continue from
+  const sources = jobs.filter((j) => j.resumable && j.voice_id === voice.id);
   const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const prevStatus = useRef(state.status);
@@ -167,6 +170,16 @@ export function TrainingCard({ state, log, voice, report, defaults, system, onVo
                   <TextField key={f.key} type="number" size="small" label={t(`train.f.${f.key}` as TKey)} helperText={t(`train.h.${f.key}` as TKey)} value={params[f.key]} onChange={(e) => setParams({ ...params, [f.key]: Number(e.target.value) })} inputProps={{ step: f.step, min: f.min }} />
                 ))}
               </Box>
+              {sources.length > 0 && (
+                <TextField select size="small" label={t("train.from")} value={sources.some((j) => j.job_id === fromJob) ? fromJob : ""} onChange={(e) => setFromJob(e.target.value)} helperText={t("train.fromHint")} sx={{ mt: 2, minWidth: 320, display: "block" }} fullWidth>
+                  <MenuItem value="">{t("train.fromBase", { name: base?.name ?? "" })}</MenuItem>
+                  {sources.map((j) => (
+                    <MenuItem key={j.job_id} value={j.job_id}>
+                      {t("train.fromRun", { date: new Date(j.created_at).toLocaleString(), epochs: j.epoch ?? 0, minutes: j.minutes?.toFixed(0) ?? "?" })}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
               <Tooltip title={t("train.h.quiet_pauses")}>
                 <FormControlLabel sx={{ mt: 1 }} control={<Switch checked={params.quiet_pauses} onChange={(e) => setParams({ ...params, quiet_pauses: e.target.checked })} />} label={t("train.f.quiet_pauses")} />
               </Tooltip>
@@ -188,7 +201,7 @@ export function TrainingCard({ state, log, voice, report, defaults, system, onVo
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
             {!running ? (
-              <Button variant="contained" size="large" startIcon={<PlayArrowIcon />} onClick={() => call(() => api.startTraining())} disabled={busy || !canStart || paramsDirty}>
+              <Button variant="contained" size="large" startIcon={<PlayArrowIcon />} onClick={() => call(() => api.startTraining(sources.some((j) => j.job_id === fromJob) ? fromJob : null))} disabled={busy || !canStart || paramsDirty}>
                 {t("train.start")}
               </Button>
             ) : (
