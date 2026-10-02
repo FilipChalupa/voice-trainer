@@ -214,9 +214,11 @@ export type SystemInfo = {
 
 export class ApiError extends Error {
   code: string | null;
-  constructor(message: string, code: string | null = null) {
+  status: number;
+  constructor(message: string, code: string | null = null, status = 0) {
     super(message);
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -231,9 +233,9 @@ async function check(res: Response): Promise<Response> {
   }
   if (detail && typeof detail === "object" && "code" in (detail as object)) {
     const d = detail as { code: string; message?: string };
-    throw new ApiError(d.message ?? d.code, d.code);
+    throw new ApiError(d.message ?? d.code, d.code, res.status);
   }
-  throw new ApiError(typeof detail === "string" ? detail : JSON.stringify(detail));
+  throw new ApiError(typeof detail === "string" ? detail : JSON.stringify(detail), null, res.status);
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -283,9 +285,10 @@ export const api = {
   check: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`),
   startCheck: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`, { method: "POST" }),
   transcribe: () => request<TranscribeState>("/api/transcribe"),
-  startTranscribe: (audio: File) => {
+  startTranscribe: (audio: File, hints = "") => {
     const form = new FormData();
     form.append("file", audio, audio.name);
+    if (hints.trim()) form.append("hints", hints.trim());
     return request<TranscribeState>("/api/transcribe", { method: "POST", body: form });
   },
   cancelTranscribe: () => request<TranscribeState>("/api/transcribe/cancel", { method: "POST" }),

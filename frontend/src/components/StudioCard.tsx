@@ -13,6 +13,8 @@ import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { api, type Prompt, type Prompts, type Recording, type VoiceSettings } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { Recorder, waveformPeaks } from "../lib/recorder";
+import { discardTakes, flushTakes, uploadKept, waitingTakes, wasKept } from "../lib/pendingTakes";
+import { useScreenAwake } from "../lib/wakeLock";
 import { onExclusiveChange, playExclusive } from "../lib/audio";
 import { RecordingList, Waveform } from "./RecordingList";
 import { ReviewDialog } from "./ReviewDialog";
@@ -111,6 +113,16 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     if (deviceId && devices.length && !devices.some((d) => d.deviceId === deviceId)) setDeviceId("");
   }, [devices, deviceId]);
 
+  // takes an earlier upload could not deliver (connection lost, server restarted, tab closed) wait in the browser
+  const [waiting, setWaiting] = useState(0);
+  const [flushing, setFlushing] = useState(false);
+  const loadWaiting = useCallback(() => {
+    waitingTakes(voice.id)
+      .then((list) => setWaiting(list.length))
+      .catch(() => undefined);
+  }, [voice.id]);
+  useEffect(loadWaiting, [loadWaiting]);
+
   const refresh = useCallback(async () => {
     try {
       const [p, r] = await Promise.all([api.prompts(4), api.recordings()]);
@@ -206,7 +218,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       setPeak(0);
       setLastPeaks(waveformPeaks(samples));
       setPhase("uploading");
-      const saved = await api.uploadRecording(wav, text.trim(), current?.id ?? null);
+      const saved = await uploadKept(voice.id, wav, text.trim(), current?.id ?? null);
       // Whisper checks the take against its text in the background (refused while training runs: then no check)
       api
         .verifyRecording(saved.id)
@@ -217,14 +229,15 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       setPhase("idle");
       if (autoPlay) await playOne(saved);
     } catch (e) {
-      onError(errorText(t, e));
+      onError(wasKept(e) ? t("pending.offline") : errorText(t, e));
+      loadWaiting();
     } finally {
       setLevel(0);
       setPeak(0);
       setPhase("idle");
       busyRef.current = false;
     }
-  }, [agc, autoPlay, current?.id, deviceId, devices.length, disabled, onChanged, onError, phase, playOne, refresh, stopPlayback, t, text, voice.max_record_seconds]);
+  }, [agc, autoPlay, current?.id, deviceId, devices.length, disabled, loadWaiting, onChanged, onError, phase, playOne, refresh, stopPlayback, t, text, voice.id, voice.max_record_seconds]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -319,8 +332,28 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     }
   };
 
+  const uploadWaiting = async () => {
+    setFlushing(true);
+    try {
+      const res = await flushTakes(voice.id);
+      if (res.left > 0) onError(t("pending.stillOffline", { n: res.left }));
+      else setInfo(t("pending.uploaded", { n: res.uploaded.length, dropped: res.dropped }));
+      for (const rec of res.uploaded) api.verifyRecording(rec.id).catch(() => undefined);
+      await refresh();
+      onChanged();
+    } finally {
+      setFlushing(false);
+      loadWaiting();
+    }
+  };
+  const discardWaiting = async () => {
+    await discardTakes(voice.id);
+    loadWaiting();
+  };
+
   const progress = Math.min(100, (totalMinutes / minutes.target) * 100);
   const busy = phase !== "idle";
+  useScreenAwake(busy);
 
   return (
     <Card>
@@ -332,6 +365,23 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       />
       <CardContent>
         <Stack spacing={2}>
+          {waiting > 0 && !flowOpen && (
+            <Alert
+              severity="warning"
+              action={
+                <Stack direction="row" spacing={1}>
+                  <Button size="small" variant="contained" color="warning" onClick={uploadWaiting} disabled={flushing || busy}>
+                    {t("pending.upload")}
+                  </Button>
+                  <Button size="small" color="inherit" onClick={discardWaiting} disabled={flushing}>
+                    {t("pending.discard")}
+                  </Button>
+                </Stack>
+              }
+            >
+              {t("pending.waiting", { n: waiting })}
+            </Alert>
+          )}
           {sessionStart && !micChecked && (
             <Alert
               severity="info"
@@ -511,12 +561,14 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       <PhoneDialog open={phoneOpen} onClose={() => setPhoneOpen(false)} />
       <FlowDialog
         open={flowOpen}
+        voiceId={voice.id}
         recorder={recorderRef.current}
         deviceId={deviceId}
         agc={agc}
         maxSeconds={voice.max_record_seconds}
         onClose={async (summary: Summary | null) => {
           setFlowOpen(false);
+          loadWaiting();
           await refresh();
           onChanged();
           if (summary && summary.taken > 0) {

@@ -29,6 +29,8 @@ out = Path(args["--out-dir"]); (out / "clips").mkdir(exist_ok=True)
 print("@@" + json.dumps({"event": "stage", "stage": "transcribing", "seconds": 2.5, "device": "cpu"}), flush=True)
 print(" 50%|#####     | 1/2", end="\\r", flush=True)
 clips = []
+hints = (out / "hints.txt").read_text(encoding="utf-8") if (out / "hints.txt").exists() else ""
+print("@@" + json.dumps({"event": "log", "message": "hints: " + hints}), flush=True)
 for i, text in enumerate(["První věta z nahrávky.", "Druhá věta z nahrávky."], start=1):
     shutil.copy(args["--input"], out / "clips" / f"{i:04d}.wav")
     clips.append({"file": f"{i:04d}.wav", "text": text, "start": 0, "end": 2.5})
@@ -57,12 +59,14 @@ def test_transcribe_import_stores_sentences(monkeypatch, tmp_path):
     script.write_text(FAKE_TRANSCRIBE)
     monkeypatch.setattr(importer, "transcribe_command", lambda source, work, language: [importer.sys.executable, str(script), "--input", str(source), "--out-dir", str(work)])
     before = client.get("/api/recordings").json()["count"]
-    res = client.post("/api/transcribe", files={"file": ("reading.wav", wav_bytes(), "audio/wav")})
+    client.put("/api/voice", json={"lexicon": {"Turris": "turis"}})
+    res = client.post("/api/transcribe", files={"file": ("reading.wav", wav_bytes(), "audio/wav")}, data={"hints": "Mejzlík, TanStack"})
     assert res.status_code == 200 and res.json()["status"] in ("loading", "transcribing", "storing", "done")
     state = wait_for(lambda: client.get("/api/transcribe").json())
     assert state["status"] == "done", state
     assert state["result"]["stored"] == 2 and state["result"]["count"] == before + 2
     assert any("2 sentences" in line for line in state["log"])
+    assert any("hints: Mejzlík, TanStack, Turris" in line for line in state["log"])  # typed terms + the pronunciation list
     items = client.get("/api/recordings").json()["items"]
     transcribed = [r for r in items if r["source"] == "transcribed"]
     assert sorted(r["text"] for r in transcribed) == ["Druhá věta z nahrávky.", "První věta z nahrávky."]

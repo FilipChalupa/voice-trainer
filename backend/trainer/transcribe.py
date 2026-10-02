@@ -124,7 +124,10 @@ def main() -> int:
     total = len(audio) / SAMPLE_RATE
     emit("stage", stage="transcribing", seconds=round(total, 1), device=device)
     # whisper works on 16 kHz; it resamples/decodes itself from the file
-    result = model.transcribe(str(args.input), language=args.language, word_timestamps=True, condition_on_previous_text=False, fp16=(device == "cuda"), verbose=False)
+    # names and terms the speaker uses, so Whisper spells them right (hints.txt is written by the API)
+    hints_file = out_dir / "hints.txt"
+    hints = " ".join(hints_file.read_text(encoding="utf-8").split())[:800] if hints_file.exists() else ""
+    result = model.transcribe(str(args.input), language=args.language, word_timestamps=True, condition_on_previous_text=False, fp16=(device == "cuda"), verbose=False, initial_prompt=hints or None)
     del model
     if device == "cuda":
         torch.cuda.empty_cache()

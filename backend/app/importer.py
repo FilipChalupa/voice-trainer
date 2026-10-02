@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from .config import BASE_DIR, LANGUAGES, Voice, load_settings
 from .events import parse_event, progress_percent, pump
@@ -147,6 +147,8 @@ class Transcriber:
             self._log(f"{ev.get('stage')}: {json.dumps({k: v for k, v in ev.items() if k not in ('event', 'stage')}, ensure_ascii=False)}")
         elif kind == "done":
             self._log(f"{ev.get('clips')} sentences found in {ev.get('seconds')} s of audio")
+        elif kind == "log":
+            self._log(str(ev.get("message", "")))
         elif kind == "error":
             self._update(error=str(ev.get("message")))
             self._log(f"ERROR: {ev.get('message')}")
@@ -156,7 +158,7 @@ transcriber = Transcriber()
 
 
 @router.post("/transcribe")
-async def post_transcribe(file: UploadFile = File(...)):
+async def post_transcribe(file: UploadFile = File(...), hints: str = Form("")):
     """Uploads a long recording; it is transcribed and cut into sentences in the background."""
     voice = require_voice()
     if transcriber.is_running():
@@ -181,6 +183,11 @@ async def post_transcribe(file: UploadFile = File(...)):
         shutil.rmtree(work, ignore_errors=True)
         raise HTTPException(400, {"code": "empty_upload", "message": "Empty upload"})
     try:
+        # the glossary handed to Whisper: what the person typed plus the words of the pronunciation list
+        terms = [hints.strip(), *(load_settings(voice).get("lexicon") or {}).keys()]
+        glossary = ", ".join(t for t in terms if t)
+        if glossary:
+            (work / "hints.txt").write_text(glossary[:800], encoding="utf-8")
         return transcriber.start(voice, source, file.filename or source.name)
     except HTTPException:
         shutil.rmtree(work, ignore_errors=True)

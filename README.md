@@ -40,11 +40,13 @@ the header shows a running training from every tab. A glossary behind the questi
    as a ZIP in the LJSpeech layout (`wavs/` + `metadata.csv`) to train with other tools, and such a ZIP can be
    imported back. A long recording (an audiobook chapter, a voice
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
-   are marked for review. The dataset overview warns when some takes are much louder, quieter or noisier than the
+   are marked for review. Names and terms the recording contains can be given to Whisper as a hint (the words of
+   the pronunciation lexicon are added by themselves). The dataset overview warns when some takes are much louder, quieter or noisier than the
    rest (a different microphone or room makes the trained voice uneven). A microphone test measures the room
    noise and your level before a session, a review mode walks through flagged takes and machine transcripts
    with the keyboard, and a phone in the same network can be used as the microphone (QR code, HTTPS with a
-   self-signed certificate).
+   self-signed certificate); the screen stays on while recording. Every take is kept in the browser until the
+   server has it: after a lost connection or a restarted server the studio offers to upload what is waiting.
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be

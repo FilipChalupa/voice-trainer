@@ -7,10 +7,12 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import SkipNextIcon from "@mui/icons-material/SkipNext";
 import { api, ApiError, type Prompt, type Recording } from "../api";
 import { errorText, useI18n } from "../i18n";
+import { flushTakes, uploadKept, wasKept } from "../lib/pendingTakes";
 import { Recorder } from "../lib/recorder";
+import { useScreenAwake } from "../lib/wakeLock";
 import { LevelMeter } from "./LevelMeter";
 
-type Props = { open: boolean; recorder: Recorder; deviceId: string; agc: boolean; maxSeconds: number; onClose: (summary: Summary | null) => void; onError: (message: string) => void };
+type Props = { open: boolean; voiceId: string; recorder: Recorder; deviceId: string; agc: boolean; maxSeconds: number; onClose: (summary: Summary | null) => void; onError: (message: string) => void };
 export type Summary = { taken: number; seconds: number; mismatched: number; pending: number };
 type Taken = { prompt: Prompt; rec: Recording };
 type Phase = "countdown" | "listening" | "paused" | "finished";
@@ -35,7 +37,7 @@ const beep = (() => {
 
 /** Reading in one go: the microphone stays open, every spoken stretch becomes the take of the sentence on
  *  screen and the text scrolls on. Whisper checks each take in the background. */
-export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose, onError }: Props) {
+export function FlowDialog({ open, voiceId, recorder, deviceId, agc, maxSeconds, onClose, onError }: Props) {
   const { t } = useI18n();
   const [queue, setQueue] = useState<Prompt[]>([]);
   const [taken, setTaken] = useState<Taken[]>([]);
@@ -61,6 +63,8 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
 
   const current = queue[0];
   phaseRef.current = phase;
+  // nobody touches the screen while reading, so a phone would lock in the middle of a paragraph
+  useScreenAwake(open && phase !== "paused");
 
   const refill = useCallback(async () => {
     const res = await api.prompts(12);
@@ -81,14 +85,21 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
       uploadsRef.current = uploadsRef.current.then(async () => {
         setUploading(true);
         try {
-          const rec = await api.uploadRecording(segment.wav, prompt.text, prompt.id);
+          const rec = await uploadKept(voiceId, segment.wav, prompt.text, prompt.id);
           setTaken((list) => [...list, { prompt, rec }]);
           beep(true);
           if (verifyRef.current) api.verifyRecording(rec.id).catch(() => undefined);
         } catch (e) {
           // a stretch without speech (the server's own check) is just dropped; anything else is reported
           const silent = e instanceof ApiError && e.code === "silent_recording";
-          if (!silent) {
+          if (wasKept(e)) {
+            // the server is out of reach: the take waits in the browser, reading stops until it is back
+            beep(false);
+            stopRef.current?.();
+            stopRef.current = null;
+            setPhase("paused");
+            onError(t("pending.offline"));
+          } else if (!silent) {
             beep(false);
             onError(errorText(t, e));
           }
@@ -100,7 +111,7 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
         if (queueRef.current.length < 6) await refill().catch(() => undefined);
       });
     },
-    [onError, refill, t],
+    [onError, refill, t, voiceId],
   );
 
   const start = useCallback(async () => {
@@ -176,6 +187,16 @@ export function FlowDialog({ open, recorder, deviceId, agc, maxSeconds, onClose,
     setPhase("paused");
   };
   const resume = () => {
+    // takes that waited for the server go up first; their sentences then leave the queue
+    uploadsRef.current = uploadsRef.current.then(async () => {
+      const res = await flushTakes(voiceId).catch(() => null);
+      if (!res?.uploaded.length) return;
+      const done = new Set(res.uploaded.map((r) => r.prompt_id));
+      const prompts = queueRef.current.filter((p) => done.has(p.id));
+      queueRef.current = queueRef.current.filter((p) => !done.has(p.id));
+      setQueue([...queueRef.current]);
+      setTaken((list) => [...list, ...res.uploaded.map((rec) => ({ prompt: prompts.find((p) => p.id === rec.prompt_id) ?? { id: rec.prompt_id ?? rec.id, text: rec.text }, rec }) as Taken)]);
+    });
     setCount(2);
     setPhase("countdown");
   };

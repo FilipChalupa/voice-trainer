@@ -50,6 +50,20 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
   if (sentence && !flowText.includes(sentence.slice(0, 20))) throw new Error("Flow dialog does not show the current sentence");
   await page.keyboard.press("Escape");
   await page.waitForTimeout(1500);
+  // a take whose upload fails waits in the browser and can be uploaded once the server answers again
+  await page.route("**/api/recordings", (route) => (route.request().method() === "POST" ? route.abort() : route.continue()));
+  await page.keyboard.press("Space");
+  await page.getByText("Recording…").waitFor({ timeout: 10000 });
+  await page.waitForTimeout(2500);
+  if (await page.getByText("Recording…").isVisible().catch(() => false)) await page.keyboard.press("Space");
+  await page.getByText("waiting in this browser: 1").waitFor({ timeout: 15000 });
+  await page.reload({ waitUntil: "load" }); // the take survives a reload
+  await page.getByRole("tab", { name: "Recording" }).click();
+  await page.getByText("waiting in this browser: 1").waitFor({ timeout: 15000 });
+  await page.unroute("**/api/recordings");
+  await page.getByRole("button", { name: "Upload now" }).click();
+  await page.getByText(/Uploaded: [01]\. Left out/).waitFor({ timeout: 15000 });
+  await page.getByText("waiting in this browser").waitFor({ state: "hidden", timeout: 15000 });
   // the glossary and the step bar
   await page.getByRole("button", { name: "Glossary" }).click();
   await page.waitForTimeout(500);
@@ -57,7 +71,7 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
   await page.keyboard.press("Escape");
   if ((await page.locator(".MuiStepper-root .MuiStep-root").count()) !== 4) throw new Error("Step bar missing");
   if (errors.length) throw new Error(`Page errors: ${errors.join("; ")}`);
-  console.log("OK: all tabs rendered, dialogs open");
+  console.log("OK: all tabs rendered, dialogs open, a failed upload is kept and recovered");
   await browser.close();
 })().catch((e) => {
   console.error(e);

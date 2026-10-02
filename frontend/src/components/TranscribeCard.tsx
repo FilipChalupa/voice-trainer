@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, CardContent, CardHeader, LinearProgress, Stack, Typography } from "@mui/material";
+import { Alert, Button, Card, CardContent, CardHeader, LinearProgress, Stack, TextField, Typography } from "@mui/material";
 import SubtitlesIcon from "@mui/icons-material/Subtitles";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import StopIcon from "@mui/icons-material/Stop";
@@ -15,6 +15,7 @@ export function TranscribeCard({ voiceId, disabled, onImported, onError }: Props
   const { t } = useI18n();
   const [state, setState] = useState<TranscribeState | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [hints, setHints] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
   const wasRunning = useRef(false);
 
@@ -41,7 +42,7 @@ export function TranscribeCard({ voiceId, disabled, onImported, onError }: Props
     if (!file) return;
     setUploading(true);
     try {
-      setState(await api.startTranscribe(file));
+      setState(await api.startTranscribe(file, hints));
     } catch (e) {
       onError(errorText(t, e));
     } finally {
@@ -62,6 +63,7 @@ export function TranscribeCard({ voiceId, disabled, onImported, onError }: Props
           <Typography variant="body2" color="text.secondary">
             {t("imp.help")} {state && !state.model_installed ? t("imp.modelDownload") : ""}
           </Typography>
+          <TextField size="small" label={t("imp.hints")} helperText={t("imp.hintsHelp")} value={hints} onChange={(e) => setHints(e.target.value)} disabled={disabled || running} fullWidth />
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
             <Button variant="contained" component="label" startIcon={<UploadFileIcon />} disabled={disabled || running}>
               {t("imp.pick")}
