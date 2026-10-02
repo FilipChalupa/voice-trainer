@@ -110,15 +110,41 @@ def list_recordings(voice: Voice) -> list[dict[str, Any]]:
     items.sort(key=lambda r: r["created"])
     flag_inconsistent(items)
     suspicious = _flagged_by_model(voice)
+    language = load_settings(voice)["language"]
     for r in items:
         extra = []
+        quality = r["quality"]
         if r["id"] in suspicious:
             extra.append("model_mismatch")
-        if (r.get("verify") or {}).get("status") == "mismatch":
+        verdict = r.get("verify") or {}
+        if verdict.get("status") == "mismatch":
             extra.append("transcript_mismatch")
-        if extra:
-            r["quality"] = {**r["quality"], "issues": [*r["quality"]["issues"], *extra]}
+        unknown = _unknown_words(r["text"], language)
+        if unknown and verdict.get("transcript"):
+            # Whisper heard the very same unusual word (a name, an old form): the text is right
+            heard = set(_WORDS.findall(verdict["transcript"].lower()))
+            unknown = tuple(w for w in unknown if w.lower() not in heard)
+        if unknown:
+            extra.append("spelling")
+            quality = {**quality, "unknown_words": list(unknown)}
+        if extra or quality is not r["quality"]:
+            r["quality"] = {**quality, "issues": [*quality["issues"], *extra]}
     return items
+
+
+_WORDS = re.compile(r"[^\W\d_]+")
+_spelling_cache: dict[tuple[str, str], tuple[str, ...]] = {}
+
+
+def _unknown_words(text: str, language: str) -> tuple[str, ...]:
+    """Words of the transcript the dictionary does not know: most often a typo in the text that would be
+    trained as written. Cached, the dictionary lookup is slow."""
+    key = (language, text)
+    if key not in _spelling_cache:
+        if len(_spelling_cache) > 20000:
+            _spelling_cache.clear()
+        _spelling_cache[key] = tuple(prompts.misspelled(text, language))
+    return _spelling_cache[key]
 
 
 def _flagged_by_model(voice: Voice) -> set[str]:
@@ -370,7 +396,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch", "spelling")},
         "rare_letters": rare,
         "sentence_types": sentence_types(items),
         "duration_histogram": buckets,

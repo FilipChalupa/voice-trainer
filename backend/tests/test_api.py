@@ -197,6 +197,24 @@ def test_custom_batches_can_be_removed():
     assert client.get("/api/prompts/custom").json()["batches"] == []
 
 
+def test_typo_in_the_text_is_flagged_unless_whisper_heard_the_same_word():
+    from app.recordings import load_index, save_index
+
+    rec = client.post("/api/recordings", data={"text": "Zalijte literm vývaru a vařte dvacet minut."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
+    assert "spelling" in item["quality"]["issues"] and item["quality"]["unknown_words"] == ["literm"]
+    assert client.get("/api/dataset").json()["issues"]["spelling"] == 1
+    # an unusual word Whisper heard as written is not a typo
+    voice = config.current_voice()
+    index = load_index(voice)
+    index[rec["id"]]["verify"] = {"status": "ok", "transcript": "Zalijte literm vývaru a vařte 20 minut.", "similarity": 1.0}
+    save_index(voice, index)
+    item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
+    assert "spelling" not in item["quality"]["issues"]
+    client.put(f"/api/recordings/{rec['id']}", json={"text": "Zalijte litrem vývaru a vařte dvacet minut."})
+    client.delete(f"/api/recordings/{rec['id']}")
+
+
 def test_dataset_report_and_training_params():
     report = client.get("/api/dataset").json()
     assert report["count"] == 1 and report["has_consent"] is True and report["ready"] is False

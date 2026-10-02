@@ -207,6 +207,11 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       setLastPeaks(waveformPeaks(samples));
       setPhase("uploading");
       const saved = await api.uploadRecording(wav, text.trim(), current?.id ?? null);
+      // Whisper checks the take against its text in the background (refused while training runs: then no check)
+      api
+        .verifyRecording(saved.id)
+        .then(() => setTimeout(() => refresh().catch(() => undefined), 4000))
+        .catch(() => undefined);
       await refresh();
       onChanged();
       setPhase("idle");

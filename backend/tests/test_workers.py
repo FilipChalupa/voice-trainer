@@ -123,6 +123,9 @@ def test_similarity_and_verify_endpoint(monkeypatch, tmp_path):
     assert similarity("Nejvyšší teploty vystoupí na sedmnáct až dvacet stupňů.", "Nejvyšší teploty vystoupí na 17 až 20 stupňů.", "cs") >= 0.95
     assert similarity("It is twenty two degrees outside.", "It is 22 degrees outside.", "en") >= 0.95
     assert similarity("Zapni Wi-Fi v obýváku.", "Zapni wifi v obýváku.") >= 0.85
+    assert similarity("Dnes tu žije přibližně dvacet tisíc obyvatel.", "Dnes tu žije přibližně 20 000 obyvatel.", "cs") >= 0.95
+    assert similarity("Budík je nastavený na šest třicet ráno.", "Budík je nastavený na 6.30 ráno.", "cs") >= 0.95
+    assert similarity("Zapni světlo v kuchyni na padesát procent.", "Zapni světlo v kuchyni na 50 %.", "cs") >= 0.95
     assert similarity("Dobrý den, jak se máte?", "Dobrý večer, jak se vede?") < 0.8
     script = tmp_path / "fake_verify.py"
     script.write_text(FAKE_VERIFY)

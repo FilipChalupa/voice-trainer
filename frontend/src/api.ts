@@ -47,7 +47,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch" | "spelling";
 
 export type Recording = {
   id: string;
@@ -60,7 +60,7 @@ export type Recording = {
   reviewed: boolean;
   verify: { status: "pending" | "ok" | "mismatch" | "error"; transcript?: string; similarity?: number } | null;
   source: "import" | "transcribed" | null;
-  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; issues: QualityIssue[] };
+  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; issues: QualityIssue[] };
 };
 
 export type TranscribeState = {

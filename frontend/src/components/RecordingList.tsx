@@ -107,7 +107,7 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                 )}
                 {rec.quality.issues.map((issue) => (
                   <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
-                    <Chip size="small" color="warning" variant="outlined" label={t(`rec.issue.${issue}` as TKey)} sx={{ height: 18, fontSize: 11 }} />
+                    <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issue === "spelling" && rec.quality.unknown_words?.length ? `: ${rec.quality.unknown_words.join(", ")}` : ""}`} sx={{ height: 18, fontSize: 11 }} />
                   </Tooltip>
                 ))}
               </Stack>

@@ -32,6 +32,11 @@ def _spell_numbers(text: str, language: str) -> str:
         except Exception:  # noqa: BLE001
             return token
 
+    text = re.sub(r"(?<=\d)[ \u00a0\u202f](?=\d{3}(?!\d))", "", text)  # 20 000 -> 20000
+    # clock times: 6:30 (and 6.30 in Czech) are two numbers, not a decimal
+    clock = r"\b([01]?\d|2[0-3])[:.]([0-5]\d)\b" if language == "cs" else r"\b([01]?\d|2[0-3]):([0-5]\d)\b"
+    text = re.sub(clock, lambda m: f"{m.group(1)} {int(m.group(2))}", text)
+    text = text.replace("%", " procent " if language == "cs" else " percent ")
     return _NUMBER.sub(repl, text)
 
 
