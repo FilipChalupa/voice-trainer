@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -236,6 +237,61 @@ def post_verify(rid: str):
     if not SAFE_ID.match(rid or ""):
         raise HTTPException(400, {"code": "bad_id", "message": "Bad recording id"})
     return verifier.submit(require_voice(), rid)
+
+
+def lexicon_suggestions(entries: list[dict[str, Any]], lexicon: dict[str, str], language: str = "cs", limit: int = 20) -> list[dict[str, Any]]:
+    """Words Whisper keeps hearing differently than they are written and the dictionary does not know: names
+    and terms. Those are the words the trained voice is most likely to say oddly too, so they are offered for
+    the lexicon with the heard form as a starting point for the respelling. Whisper's own spelling habits
+    (mně/mě, tří/tři) are dictionary words and stay out."""
+    import difflib
+    from collections import Counter, defaultdict
+
+    from trainer.verify_worker import normalize
+
+    from .prompts import _dictionary
+
+    dictionary = _dictionary(language)
+    language = LANGUAGES.get(language, LANGUAGES["cs"])["espeak"].split("-")[0]
+    known = {w.lower() for w in lexicon}
+    heard_as: dict[str, Counter] = defaultdict(Counter)
+    takes: Counter = Counter()
+    original: dict[str, str] = {}
+    for entry in entries:
+        transcript = (entry.get("verify") or {}).get("transcript")
+        text = entry.get("text") or ""
+        if not transcript or not text:
+            continue
+        a, b = normalize(text, language), normalize(transcript, language)
+        for w in set(a):
+            takes[w] += 1
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+            if tag != "replace" or i2 - i1 != j2 - j1:
+                continue  # only word-for-word swaps say something about one word
+            for w, h in zip(a[i1:i2], b[j1:j2]):
+                if len(w) < 3 or w == h or w in known:
+                    continue
+                if w not in original:
+                    m = re.search(r"(?<!\w)" + re.escape(w) + r"(?!\w)", text, flags=re.IGNORECASE)
+                    original[w] = m.group(0) if m else w
+                if dictionary is not None and (dictionary.lookup(original[w]) or dictionary.lookup(w)):
+                    continue
+                heard_as[w][h] += 1
+    out = []
+    for w, counter in heard_as.items():
+        heard, n = counter.most_common(1)[0]
+        # at least twice, and in at least half of the takes that contain the word: a slip of the tongue once is not a term
+        if n >= 2 and n * 2 >= takes[w]:
+            out.append({"word": original.get(w, w), "heard": heard, "count": n, "takes": takes[w]})
+    out.sort(key=lambda s: (-s["count"], s["word"]))
+    return out[:limit]
+
+
+@router.get("/lexicon/suggestions")
+def get_lexicon_suggestions():
+    voice = require_voice()
+    settings = load_settings(voice)
+    return {"items": lexicon_suggestions(list(load_index(voice).values()), settings.get("lexicon") or {}, settings["language"])}
 
 
 @router.get("/verify")

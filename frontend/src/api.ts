@@ -250,6 +250,7 @@ export const api = {
   createVoice: (name: string, owner: string, language: string) => request<VoicesPayload>("/api/voices", json("POST", { name, owner, language })),
   selectVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}/select`, { method: "POST" }),
   deleteVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}`, { method: "DELETE" }),
+  lexiconSuggestions: () => request<{ items: { word: string; heard: string; count: number; takes: number }[] }>("/api/lexicon/suggestions"),
   saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams; lexicon?: Record<string, string> }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
   uploadConsent: (wav: Blob) => {
     const form = new FormData();

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import { Button, Chip, IconButton, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { api, type VoiceSettings, type VoicesPayload } from "../api";
@@ -16,6 +16,14 @@ export function LexiconEditor({ voice, onVoices, onError }: Props) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => setEntries(Object.entries(voice.lexicon ?? {})), [voice.id, voice.lexicon]);
+  // words Whisper keeps hearing differently than written: likely names and terms worth a respelling
+  const [suggestions, setSuggestions] = useState<{ word: string; heard: string; count: number }[]>([]);
+  useEffect(() => {
+    api
+      .lexiconSuggestions()
+      .then((r) => setSuggestions(r.items))
+      .catch(() => setSuggestions([]));
+  }, [voice.id, voice.lexicon]);
 
   const save = async (next: [string, string][]) => {
     setBusy(true);
@@ -58,6 +66,27 @@ export function LexiconEditor({ voice, onVoices, onError }: Props) {
               {t("lex.add")}
             </Button>
           </Stack>
+          {suggestions.length > 0 && (
+            <Stack spacing={0.5}>
+              <Typography variant="body2" color="text.secondary">
+                {t("lex.suggestHint")}
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {suggestions.map((s) => (
+                  <Chip
+                    key={s.word}
+                    size="small"
+                    variant="outlined"
+                    label={t("lex.suggestChip", { word: s.word, heard: s.heard, n: s.count })}
+                    onClick={() => {
+                      setWord(s.word);
+                      setSpoken(s.heard);
+                    }}
+                  />
+                ))}
+              </Stack>
+            </Stack>
+          )}
           {entries.length > 0 && (
             <Table size="small">
               <TableHead>

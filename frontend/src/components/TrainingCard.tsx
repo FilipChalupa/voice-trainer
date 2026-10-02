@@ -66,6 +66,7 @@ export function TrainingCard({ state, log, voice, report, jobs, defaults, system
   const [calibration, setCalibration] = useState<Calibration | null>(null);
   const [fromJob, setFromJob] = useState(""); // "" = the base voice, otherwise an earlier run to continue from
   const sources = jobs.filter((j) => j.resumable && j.voice_id === voice.id);
+  const lastRun = jobs.filter((j) => j.voice_id === voice.id && j.recordings != null && j.status !== "running").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const prevStatus = useRef(state.status);
@@ -152,6 +153,11 @@ export function TrainingCard({ state, log, voice, report, jobs, defaults, system
               {requirement((report?.minutes ?? 0) >= (report?.min_minutes ?? 5), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), t("train.req.minutes", { minutes: (report?.minutes ?? 0).toFixed(1), min: report?.min_minutes ?? 5 }), false, (report?.minutes ?? 0) < (report?.min_minutes ?? 5) ? { label: t("train.req.goRecord"), onClick: () => onGo("record") } : undefined)}
               {base && requirement(base.installed, t("train.req.base", { name: base.name }), t("train.req.baseMissing", { name: base.name, size: base.size_mb }), true)}
               {requirement(gpuOk, t("train.req.gpu"), t("train.req.gpuMissing"))}
+              {lastRun && report && (
+                <Typography variant="body2" color={report.count > lastRun.recordings ? "text.primary" : "text.secondary"} sx={{ pt: 0.5 }}>
+                  {t(report.count === lastRun.recordings ? "train.sinceLast.same" : report.count > lastRun.recordings ? "train.sinceLast.more" : "train.sinceLast.fewer", { n: Math.abs(report.count - lastRun.recordings), when: new Date(lastRun.created_at).toLocaleDateString(), count: report.count })}
+                </Typography>
+              )}
               {calibration && report && report.count > 0 && (
                 <Typography variant="body2" color="text.secondary" sx={{ pt: 0.5 }}>
                   {calibration.basis === "none" ? t("train.estimate.none") : t(`train.estimate.${calibration.basis}` as TKey, { time: duration(estimate ?? 0) })}

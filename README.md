@@ -47,7 +47,8 @@ the header shows a running training from every tab. A glossary behind the questi
    with the keyboard, and a phone in the same network can be used as the microphone (QR code, HTTPS with a
    self-signed certificate); the screen stays on while recording. Every take is kept in the browser until the
    server has it: after a lost connection or a restarted server the studio offers to upload what is waiting.
-3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings
+3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings (the card says how
+   many takes were added since the last run)
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
    stopped (the current state is saved first), continued after a restart, or extended with more epochs. The
@@ -58,7 +59,8 @@ the header shows a running training from every tab. A glossary behind the questi
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run, with a run of
    another voice of the same language (another microphone) or with the untouched base voice (both read the
    same text back to back), keep a pronunciation list for names and
-   abbreviations espeak reads wrong (applied when this app speaks; Piper itself has no dictionary), then download
+   abbreviations espeak reads wrong (applied when this app speaks; Piper itself has no dictionary; words Whisper
+   kept hearing differently while checking the takes are suggested), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |
