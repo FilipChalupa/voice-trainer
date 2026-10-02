@@ -155,3 +155,23 @@ def test_library_cleaning():
     gb = "junk\r\n*** START OF THE PROJECT GUTENBERG EBOOK X ***\r\nFirst line\r\nsame paragraph.\r\n\r\nNext.\r\n*** END OF THE PROJECT GUTENBERG EBOOK X ***\r\nlicense"
     assert strip_gutenberg(gb).strip() == "First line same paragraph.\n\nNext."
     assert [_chapter_key(x)[0] for x in ("I", "IV", "IX", "XIV", "3", "Úvod")] == [1, 4, 9, 14, 3, 10**6]
+
+
+def test_library_text_is_made_easy_to_read():
+    from app.library import sentences_of, split_long
+
+    text = "„Poslyšte, pane Dastychu,“ řekl zamyšleně policejní úředník dr. Mejzlík starému kouzelníkovi, „já k vám jdu vlastně na poradu. já mám tuhle jeden případ – se kterým si nevím rady…“ „Kohopak se týká?“ ptal se pan Dastych."
+    out = sentences_of(text)
+    assert out == [
+        "Poslyšte, pane Dastychu, řekl zamyšleně policejní úředník dr. Mejzlík starému kouzelníkovi,",
+        "já k vám jdu vlastně na poradu.",
+        "Já mám tuhle jeden případ, se kterým si nevím rady.",
+        "Kohopak se týká?",
+        "Ptal se pan Dastych.",
+    ]
+    assert all(len(s) <= 110 for s in out) and not any(c in "".join(out) for c in "„“–…")
+    # the words stay exactly as written, only shown in pieces
+    long = "Když se vrátil domů, bylo už úplně tma a na stole ležel vzkaz, který tam ráno určitě nebyl, protože by si ho býval všiml."
+    pieces = split_long(long)
+    assert len(pieces) >= 2 and " ".join(pieces) == long and all(len(x) <= 110 for x in pieces)
+    assert sentences_of(text, easy=False)[0].startswith("„Poslyšte")

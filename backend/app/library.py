@@ -105,12 +105,72 @@ def strip_html(text: str) -> str:
     return html.unescape(text)
 
 
-def sentences_of(text: str) -> list[str]:
+MAX_PROMPT_CHARS = 110  # about 7 seconds of speech; longer sentences are split at a clause boundary
+_QUOTES = re.compile(r"[„“”\"«»‚‘]|(?<!\w)[’']|[’'](?!\w)")
+
+
+def simplify(text: str) -> str:
+    """Book typography out of the way of the reader: no quotation marks, dashes and brackets become commas,
+    ellipses become a comma or a full stop. What is left is read exactly as shown."""
+    text = _QUOTES.sub("", text)
+    text = re.sub(r"^[ \t]*[–—-]+\s*", "", text, flags=re.M)
+    text = re.sub(r"\s+[–—]+\s+|\s+-+\s+|[–—]{1,2}", ", ", text)
+    text = re.sub(r"\s*[()\[\]]\s*", ", ", text)
+    text = re.sub(r"(?:\.{3}|…)\s*(?=[a-záčďéěíňóřšťúůýž])", ", ", text)
+    text = re.sub(r"\.{3}|…", ".", text)
+    text = re.sub(r"[*_]", "", text)
+    text = re.sub(r"[ \t]+([,.;:?!])", r"\1", text)
+    text = re.sub(r",(?:\s*,)+", ",", text)
+    text = re.sub(r",\s*([.;:?!])", r"\1", text)
+    text = re.sub(r"([.?!:;])\s*,", r"\1", text)
+    text = re.sub(r"\.{2,}", ".", text)
+    text = re.sub(r"^[ \t]*,\s*", "", text, flags=re.M)
+    return text
+
+
+def split_long(sentence: str, limit: int = MAX_PROMPT_CHARS, min_part: int = 25) -> list[str]:
+    """A long sentence in several pieces, cut at the clause boundary nearest to its middle (a semicolon or
+    colon is preferred over a comma). The text itself is not touched: a piece keeps the comma it ends with and
+    the next one continues in lower case, so each take is read with the intonation the punctuation asks for."""
+    if len(sentence) <= limit:
+        return [sentence]
+    best: tuple[float, str, str] | None = None
+    for m in re.finditer(r"[;:,]\s+", sentence):
+        left, right = sentence[: m.start() + 1], sentence[m.end() :]
+        if len(left) < min_part or len(right) < min_part:
+            continue
+        score = abs(len(left) - len(right)) - (30 if sentence[m.start()] in ";:" else 0)
+        if best is None or score < best[0]:
+            best = (score, left, right)
+    if best is None:
+        return [sentence]
+    _, left, right = best
+    return split_long(left, limit, min_part) + split_long(right, limit, min_part)
+
+
+def _capitalize_starts(text: str) -> str:
+    """With the quotation marks gone, a reply that follows "?" "!" or "." in lower case starts a sentence of
+    its own ("... týká? ptal se ..."), unless the dot belongs to an abbreviation or an initial."""
+
+    def repl(m: re.Match) -> str:
+        word = m.group(1).lower()
+        if m.group(2) == "." and (word in prompts.ABBREVIATIONS or len(word) <= 1 or word.isdigit()):
+            return m.group(0)
+        return f"{m.group(1)}{m.group(2)} {m.group(3).upper()}"
+
+    return re.sub(r"(\w+)([.?!])[ \t]+([a-záčďéěíňóřšťúůýž])", repl, text)
+
+
+def sentences_of(text: str, easy: bool = True) -> list[str]:
+    """Sentences to read. ``easy`` strips the typography and shows long sentences in pieces; without it the
+    text is kept as written."""
     out = []
-    for s in prompts.split_sentences(text):
+    for s in prompts.split_sentences(_capitalize_starts(simplify(text)) if easy else text):
         if s.isupper() or len(s) > 300:
             continue
-        out.append(s)
+        for part in split_long(s) if easy else [s]:
+            if len(part) >= 8 and len(part.split()) >= 2:
+                out.append(part)
     return out[:MAX_SENTENCES]
 
 
@@ -238,7 +298,7 @@ def queue_text(body: dict[str, Any]):
             text = str(body.get("text", ""))
     except requests.RequestException as exc:
         raise HTTPException(502, {"code": "fetch_failed", "message": f"Could not fetch the text: {exc}"}) from exc
-    sentences = sentences_of(text)
+    sentences = sentences_of(text, easy=body.get("easy", True) is not False)
     if not sentences:
         raise HTTPException(400, {"code": "no_sentences", "message": "No sentences found in the text"})
     if not source:
