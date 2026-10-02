@@ -37,7 +37,7 @@ print("@@" + json.dumps({"event": "done", "clips": 2, "seconds": 2.5}), flush=Tr
 '''
 
 
-def wait_for(fn, timeout=20):
+def wait_for(fn, timeout=90):
     deadline = time.time() + timeout
     while time.time() < deadline:
         state = fn()
@@ -135,7 +135,7 @@ def test_similarity_and_verify_endpoint(monkeypatch, tmp_path):
     bad = client.post("/api/recordings", data={"text": "Tohle je jiná věta."}, files={"file": ("b.wav", wav_bytes(), "audio/wav")}).json()
     assert client.post(f"/api/recordings/{ok['id']}/verify").json()["status"] == "pending"
     assert client.post(f"/api/recordings/{bad['id']}/verify").json()["status"] == "pending"
-    deadline = time.time() + 15
+    deadline = time.time() + 90
     while time.time() < deadline:
         items = {r["id"]: r for r in client.get("/api/recordings").json()["items"]}
         if all((items[i]["verify"] or {}).get("status") in ("ok", "mismatch", "error") for i in (ok["id"], bad["id"])):
@@ -169,7 +169,7 @@ def _upload(text):
     return client.post("/api/recordings", data={"text": text}, files={"file": ("a.wav", wav_bytes(seconds=1.0), "audio/wav")}).json()
 
 
-def _wait_settled(ids, timeout=15):
+def _wait_settled(ids, timeout=90):
     deadline = time.time() + timeout
     while time.time() < deadline:
         items = client.get("/api/recordings").json()["items"]

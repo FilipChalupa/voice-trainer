@@ -62,9 +62,10 @@ def _speech_bounds(audio: np.ndarray, sr: int, threshold_db: float = -32.0) -> t
     if peak < 1e-3:
         return None
     # relative to the loudest frame, but never inside the room noise: a quiet take with an audible floor would
-    # otherwise count as speech from the first frame to the last
+    # otherwise count as speech from the first frame to the last. The noise term is capped, so a take that is
+    # speech from edge to edge (its quietest tenth is speech too) still has a spoken part.
     noise = float(np.percentile(rms, 10))
-    threshold = max(peak * 10 ** (threshold_db / 20.0), noise * 10 ** (15 / 20.0), 0.004)
+    threshold = max(peak * 10 ** (threshold_db / 20.0), min(noise * 10 ** (15 / 20.0), peak * 0.25), 0.004)
     active = np.where(rms > threshold)[0]
     if active.size == 0:
         return None
@@ -189,7 +190,7 @@ def quiet_pauses(audio: np.ndarray, sr: int, min_pause_ms: int = 120, attenuatio
     if peak < 1e-3:
         return audio
     noise = float(np.percentile(rms, 10))
-    threshold = max(peak * 10 ** (-30 / 20.0), noise * 10 ** (15 / 20.0), 0.004)
+    threshold = max(peak * 10 ** (-30 / 20.0), min(noise * 10 ** (15 / 20.0), peak * 0.25), 0.004)
     quiet = rms <= threshold
     gain = np.ones(len(rms), dtype=np.float32)
     keep, min_len = keep_ms // 10, min_pause_ms // 10

@@ -175,3 +175,13 @@ def test_library_text_is_made_easy_to_read():
     pieces = split_long(long)
     assert len(pieces) >= 2 and " ".join(pieces) == long and all(len(x) <= 110 for x in pieces)
     assert sentences_of(text, easy=False)[0].startswith("„Poslyšte")
+
+
+def test_take_that_is_speech_from_edge_to_edge_is_cut_not_silent(tmp_path):
+    sr = 22050
+    t = np.arange(int(2.0 * sr)) / sr
+    audio = (0.4 * np.sin(2 * np.pi * 200 * t) * (0.7 + 0.3 * np.sin(2 * np.pi * 4 * t))).astype(np.float32)
+    path = tmp_path / "full.wav"
+    sf.write(str(path), audio, sr, subtype="PCM_16")
+    issues = analyze(path, "Věta bez ticha na krajích.")["quality"]["issues"]
+    assert "cut_start" in issues and "cut_end" in issues and "silent" not in issues
