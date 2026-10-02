@@ -74,6 +74,13 @@ class ProgressCallback(Callback):
         emit("step", epoch=int(trainer.current_epoch), batch=int(batch_idx) + 1, batches=int(trainer.num_training_batches))
 
     def on_train_end(self, trainer, pl_module) -> None:
+        # the checkpoint callbacks only write at validations; without this the epochs after the last one
+        # (max_epochs not divisible by the validation interval, or an early stop) would never reach last.ckpt
+        if not self._stopped:
+            try:
+                trainer.save_checkpoint(self.checkpoint_dir / "last.ckpt")
+            except Exception as exc:  # noqa: BLE001
+                emit("log", message=f"Could not save the final checkpoint: {exc}")
         # EarlyStopping only sets should_stop; report it so the run history can say why the run is shorter
         if trainer.should_stop and not self._stopped and int(trainer.current_epoch) + 1 < int(trainer.max_epochs):
             emit("early_stop", epoch=int(trainer.current_epoch) + 1, patience=self.patience)
