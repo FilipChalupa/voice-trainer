@@ -328,6 +328,9 @@ def test_prompts_with_numbers_say_how_they_are_read_and_text_is_respelled_for_ot
 
 
 def test_sound_coverage_counts_rare_sounds_and_suggests_paragraphs():
+    import pytest
+
+    pytest.importorskip("piper")  # espeak comes with Piper: in the app image, not in the plain test environment
     from app import coverage
 
     counts = coverage.count_sounds(["Džbán s džusem.", "Leckdo má euro a auto."], "cs", {})
@@ -336,3 +339,13 @@ def test_sound_coverage_counts_rare_sounds_and_suggests_paragraphs():
     assert res["available"] is True and res["low"] == 20
     assert any(i["sound"] == "dž" and i["low"] for i in res["items"])
     assert res["suggest"] and res["suggest"][0]["gain"] > 0 and "vzacne-hlasky" in [s["id"] for s in res["suggest"]]
+
+
+def test_sound_coverage_without_piper_says_so(monkeypatch):
+    from app import coverage
+
+    def missing(text, voice):
+        raise ImportError("piper")
+
+    monkeypatch.setattr(coverage, "phonemes", missing)
+    assert client.get("/api/dataset/coverage").json() == {"available": False, "items": [], "suggest": [], "low": 20}
