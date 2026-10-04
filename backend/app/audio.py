@@ -215,3 +215,37 @@ def quiet_pauses(audio: np.ndarray, sr: int, min_pause_ms: int = 120, attenuatio
     kernel = np.ones(ramp, dtype=np.float32) / ramp
     env = np.convolve(env, kernel, mode="same").astype(np.float32)
     return (audio * env).astype(np.float32)
+
+
+def processing_active(p: dict[str, float] | None) -> bool:
+    return bool(p) and (p.get("highpass_hz", 0) > 0 or abs(p.get("bass_db", 0)) >= 0.1 or abs(p.get("treble_db", 0)) >= 0.1)
+
+
+def eq_gain(freqs: np.ndarray, p: dict[str, float]) -> np.ndarray:
+    """Linear gain of the tone correction at each frequency: a 24 dB/octave high-pass, a bass shelf below
+    ``bass_hz`` and a treble shelf above ``treble_hz`` (second order: an octave past the corner the tone is
+    left alone, so a bass cut does not thin out the middle of the voice)."""
+    f = np.maximum(np.asarray(freqs, dtype=np.float64), 1e-3)
+    gain = np.ones_like(f)
+    if p.get("highpass_hz", 0) > 0:
+        gain *= 1.0 / np.sqrt(1.0 + (p["highpass_hz"] / f) ** 8)
+    if abs(p.get("bass_db", 0)) >= 0.1:
+        g, f0 = 10 ** (p["bass_db"] / 20.0), float(p.get("bass_hz", 250))
+        gain *= np.sqrt((g * g * f0**4 + f**4) / (f0**4 + f**4))
+    if abs(p.get("treble_db", 0)) >= 0.1:
+        g, f0 = 10 ** (p["treble_db"] / 20.0), float(p.get("treble_hz", 4000))
+        gain *= np.sqrt((f0**4 + g * g * f**4) / (f0**4 + f**4))
+    return gain
+
+
+def apply_processing(audio: np.ndarray, sr: int, p: dict[str, float] | None) -> np.ndarray:
+    """The take with the tone correction applied. Done on the spectrum of the whole take, so the phase stays
+    as it was (no smearing of consonants); a boost that would clip is scaled back."""
+    if not processing_active(p) or audio.shape[0] < 16:
+        return audio
+    spectrum = np.fft.rfft(audio.astype(np.float64))
+    out = np.fft.irfft(spectrum * eq_gain(np.fft.rfftfreq(audio.shape[0], 1.0 / sr), p), n=audio.shape[0])
+    peak = float(np.max(np.abs(out)))
+    if peak > 0.99:
+        out *= 0.99 / peak
+    return out.astype(np.float32)

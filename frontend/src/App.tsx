@@ -11,6 +11,7 @@ import { StudioCard } from "./components/StudioCard";
 import { DatasetCard } from "./components/DatasetCard";
 import { TranscribeCard } from "./components/TranscribeCard";
 import { TrainingCard } from "./components/TrainingCard";
+import { ProcessingCard } from "./components/ProcessingCard";
 import { JobsCard } from "./components/JobsCard";
 import { TestCard } from "./components/TestCard";
 import { DeployCard } from "./components/DeployCard";
@@ -181,6 +182,7 @@ function Main() {
           {tab === "train" && voice && payload && (
             <>
               <TrainingCard state={state} log={log} voice={voice} report={report} jobs={jobs} defaults={payload.defaults} system={system} onVoices={onVoices} onError={showError} onFinished={loadJobs} onGo={selectTab} />
+              {(report?.count ?? 0) > 0 && <ProcessingCard voice={voice} payload={payload} disabled={running} onVoices={onVoices} onError={showError} />}
               {jobs.length > 0 && (
                 <Accordion disableGutters variant="outlined" defaultExpanded={jobs.length > 1 && !running}>
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>

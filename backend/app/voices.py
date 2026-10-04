@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from .audio import normalize_wav
-from .config import DEFAULT_TRAINING, LANGUAGES, MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, create_voice, current_voice, delete_voice, get_voice, list_voices, load_settings, now, save_settings, select_voice, write_settings
+from .config import DEFAULT_PROCESSING, DEFAULT_TRAINING, PROCESSING_LIMITS, LANGUAGES, MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, create_voice, current_voice, delete_voice, get_voice, list_voices, load_settings, now, save_settings, select_voice, write_settings
 
 router = APIRouter(prefix="/api", tags=["voices"])
 
@@ -31,7 +31,7 @@ def has_consent(voice: Voice) -> bool:
 
 def _payload(voice: Voice | None) -> dict[str, Any]:
     languages = [{"id": k, "label": v["label"], "base": {kk: vv for kk, vv in v["base"].items() if kk != "url"}} for k, v in LANGUAGES.items()]
-    base = {"voices": list_voices(), "current": voice.id if voice else None, "languages": languages, "defaults": DEFAULT_TRAINING, "minutes": {"min": MIN_MINUTES, "recommended": RECOMMENDED_MINUTES, "target": TARGET_MINUTES}}
+    base = {"voices": list_voices(), "current": voice.id if voice else None, "languages": languages, "defaults": DEFAULT_TRAINING, "processing_defaults": DEFAULT_PROCESSING, "processing_limits": PROCESSING_LIMITS, "minutes": {"min": MIN_MINUTES, "recommended": RECOMMENDED_MINUTES, "target": TARGET_MINUTES}}
     if voice:
         settings = load_settings(voice)
         base["voice"] = {**settings, "id": voice.id, "has_consent": has_consent(voice), "consent_statement": consent_statement(voice)}

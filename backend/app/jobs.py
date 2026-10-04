@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from . import base
+from .audio import processing_active
 from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, pronounce, slugify
 from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
@@ -35,15 +36,17 @@ STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clea
 WARMSTART_FILE = "warmstart.ckpt"  # an earlier run's checkpoint this run starts from (a hard link, removed afterwards)
 
 
-def prepare_training_audio(voice: Voice, items: list[dict[str, Any]], target: Path) -> None:
+def prepare_training_audio(voice: Voice, items: list[dict[str, Any]], target: Path, quiet: bool = True, processing: dict[str, float] | None = None) -> None:
+    """Copies of the takes for training: tone correction first, then the pauses faded down. The takes stay."""
     import soundfile as sf
 
-    from .audio import quiet_pauses
+    from .audio import apply_processing, quiet_pauses
 
     target.mkdir(parents=True, exist_ok=True)
     for r in items:
         data, sr = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
-        sf.write(str(target / f"{r['id']}.wav"), quiet_pauses(data[:, 0], sr), sr, subtype="PCM_16")
+        audio = apply_processing(data[:, 0], sr, processing)
+        sf.write(str(target / f"{r['id']}.wav"), quiet_pauses(audio, sr) if quiet else audio, sr, subtype="PCM_16")
 
 
 class JobManager:
@@ -205,10 +208,11 @@ class JobManager:
         (job_dir / "dataset" / "metadata.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
         training = dict(settings["training"])
         audio_dir = voice.recordings_dir
-        if training.get("quiet_pauses", True):
-            # the takes go in with their pauses faded down; the originals stay as they are
+        processing = settings.get("processing") or {}
+        if training.get("quiet_pauses", True) or processing_active(processing):
+            # the takes go in tone-corrected and with their pauses faded down; the originals stay as they are
             audio_dir = job_dir / "dataset" / "audio"
-            prepare_training_audio(voice, items, audio_dir)
+            prepare_training_audio(voice, items, audio_dir, bool(training.get("quiet_pauses", True)), processing)
         job = {
             "job_id": job_id,
             "voice_id": voice.id,
@@ -220,6 +224,7 @@ class JobManager:
             "owner": settings["owner"],
             "consent": settings["consent"],
             "training": training,
+            "processing": processing if processing_active(processing) else None,
             "max_epochs": int(training["epochs"]),
             "recordings": len(items),
             "minutes": round(minutes, 2),

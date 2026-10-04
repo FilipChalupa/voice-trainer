@@ -147,6 +147,25 @@ class Voice:
         return self
 
 
+# Tone correction of the copies that go into training (the takes themselves are never changed): a close dynamic
+# microphone makes the voice boomy, and the model learns the tone of its data.
+DEFAULT_PROCESSING: dict[str, float] = {"highpass_hz": 0, "bass_db": 0.0, "bass_hz": 250, "treble_db": 0.0, "treble_hz": 4000}
+PROCESSING_LIMITS: dict[str, tuple[float, float]] = {"highpass_hz": (0, 200), "bass_db": (-12, 6), "bass_hz": (100, 500), "treble_db": (-6, 9), "treble_hz": (2000, 8000)}
+
+
+def clean_processing(update: Any) -> dict[str, float]:
+    """Processing settings with every value inside its limits; anything missing or unreadable is the default."""
+    out = dict(DEFAULT_PROCESSING)
+    for key, (low, high) in PROCESSING_LIMITS.items():
+        try:
+            out[key] = round(min(high, max(low, float((update or {}).get(key, out[key])))), 1)
+        except (TypeError, ValueError):
+            pass
+    if 0 < out["highpass_hz"] < 40:
+        out["highpass_hz"] = 40
+    return out
+
+
 def _default_settings(name: str, language: str, owner: str) -> dict[str, Any]:
     return {
         "name": name,
@@ -155,6 +174,7 @@ def _default_settings(name: str, language: str, owner: str) -> dict[str, Any]:
         "consent": None,  # {"text": ..., "at": ..., "owner": ...} once recorded
         "max_record_seconds": 15.0,
         "training": dict(DEFAULT_TRAINING),
+        "processing": dict(DEFAULT_PROCESSING),
         "lexicon": {},  # word -> respelling that espeak pronounces right; applied when this app synthesises
         "skipped_prompts": [],
         "created_at": now(),
@@ -172,6 +192,7 @@ def load_settings(voice: Voice) -> dict[str, Any]:
     settings = _default_settings(voice.id, stored.get("language", "cs"), stored.get("owner", ""))
     settings.update({k: v for k, v in stored.items() if k != "training"})
     settings["training"].update(stored.get("training", {}))
+    settings["processing"] = clean_processing(stored.get("processing"))
     return settings
 
 
@@ -197,6 +218,8 @@ def save_settings(voice: Voice, update: dict[str, Any]) -> dict[str, Any]:
             if word and spoken:
                 lexicon[word] = spoken
         settings["lexicon"] = lexicon
+    if "processing" in update and isinstance(update["processing"], dict):
+        settings["processing"] = clean_processing(update["processing"])
     if "training" in update and isinstance(update["training"], dict):
         for key, default in DEFAULT_TRAINING.items():
             if key in update["training"] and update["training"][key] is not None:

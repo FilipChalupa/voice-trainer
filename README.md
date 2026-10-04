@@ -55,7 +55,10 @@ the header shows a running training from every tab. A glossary behind the questi
    self-signed certificate); the screen stays on while recording. Every take is kept in the browser until the
    server has it: after a lost connection or a restarted server the studio offers to upload what is waiting.
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings (the card says how
-   many takes were added since the last run)
+   many takes were added since the last run). A sound-correction card sets the tone of the copies that go into training
+   (high-pass, bass and treble shelves, a suggestion from your takes, the spectrum before and after, one take to
+   compare by ear): a close microphone makes a voice boomy and the model learns exactly that. The takes stay as
+   they are
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
    stopped (the current state is saved first), continued after a restart, or extended with more epochs. The

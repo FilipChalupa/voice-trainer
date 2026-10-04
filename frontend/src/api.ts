@@ -20,8 +20,19 @@ export type VoiceSettings = {
   consent_statement: string;
   max_record_seconds: number;
   training: TrainingParams;
+  processing: Processing;
   created_at?: string;
   lexicon: Record<string, string>;
+};
+
+/** Tone correction of the copies that go into training. */
+export type Processing = { highpass_hz: number; bass_db: number; bass_hz: number; treble_db: number; treble_hz: number };
+export type ProcessingAnalysis = {
+  available: boolean;
+  bands: { band: "sub" | "bass" | "mid" | "presence" | "air"; from_hz: number; to_hz: number; before_db: number; after_db: number }[];
+  /** [frequency, before, after] in dB below the loudest point */
+  curve: [number, number, number][];
+  suggested: Processing | null;
 };
 
 export type VoiceSummary = {
@@ -43,6 +54,8 @@ export type VoicesPayload = {
   current: string | null;
   languages: Language[];
   defaults: TrainingParams;
+  processing_defaults: Processing;
+  processing_limits: Record<keyof Processing, [number, number]>;
   minutes: { min: number; recommended: number; target: number };
   voice: VoiceSettings | null;
 };
@@ -198,6 +211,7 @@ export type Job = {
   resumable: boolean;
   stopped_early: boolean;
   from_job?: string | null;
+  processing?: Processing | null;
   previews: number;
 };
 
@@ -257,7 +271,7 @@ export const api = {
   deleteVoice: (id: string) => request<VoicesPayload>(`/api/voices/${id}`, { method: "DELETE" }),
   lexiconBuiltin: () => request<{ items: { word: string; spoken: string }[] }>("/api/lexicon/builtin"),
   lexiconSuggestions: () => request<{ items: { word: string; heard: string; count: number; takes: number }[] }>("/api/lexicon/suggestions"),
-  saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams; lexicon?: Record<string, string> }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
+  saveVoice: (update: Partial<Pick<VoiceSettings, "name" | "owner">> & { training?: TrainingParams; lexicon?: Record<string, string>; processing?: Processing }) => request<VoicesPayload>("/api/voice", json("PUT", update)),
   uploadConsent: (wav: Blob) => {
     const form = new FormData();
     form.append("file", wav, "consent.wav");
@@ -324,6 +338,11 @@ export const api = {
   exportJob: (id: string) => request<TrainingState>(`/api/jobs/${id}/export`, { method: "POST" }),
   synthesize: async (body: { job_id: string; file: string; voice_id?: string; text: string; length_scale: number; noise_scale: number; noise_w_scale: number }) => {
     const res = await check(await fetch("/api/synthesize", json("POST", body)));
+    return res.blob();
+  },
+  processingAnalysis: (processing: Processing) => request<ProcessingAnalysis>("/api/processing/analysis", json("POST", { processing })),
+  processingPreview: async (recordingId: string, processing: Processing) => {
+    const res = await check(await fetch("/api/processing/preview", json("POST", { recording_id: recordingId, processing })));
     return res.blob();
   },
   system: () => request<SystemInfo>("/api/system"),

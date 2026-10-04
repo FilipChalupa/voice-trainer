@@ -49,7 +49,14 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
                     <TableCell>
                       <Chip size="small" label={t((STATUSES.has(job.status) ? `jobs.s.${job.status}` : "jobs.s.failed") as TKey)} color={COLORS[job.status] ?? "default"} />
                     </TableCell>
-                    <TableCell>{t("jobs.dataValue", { minutes: job.minutes?.toFixed(1) ?? "–", recordings: job.recordings ?? "–" })}</TableCell>
+                    <TableCell>
+                      {t("jobs.dataValue", { minutes: job.minutes?.toFixed(1) ?? "–", recordings: job.recordings ?? "–" })}
+                      {job.processing && (
+                        <Tooltip title={`${job.processing.highpass_hz ? `${job.processing.highpass_hz} Hz · ` : ""}${job.processing.bass_db} dB / ${job.processing.bass_hz} Hz · ${job.processing.treble_db} dB / ${job.processing.treble_hz} Hz`}>
+                          <Chip size="small" variant="outlined" label={t("jobs.processed")} sx={{ ml: 1 }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {job.status === "running" ? liveEpoch : (job.epoch ?? 0)} / {job.max_epochs}
                     </TableCell>
