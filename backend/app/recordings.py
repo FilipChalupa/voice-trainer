@@ -13,6 +13,8 @@ from typing import Any
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from trainer import loanwords
+
 from . import prompts
 from .audio import analyze, has_speech, normalize_wav, trim_edges
 from .config import MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, load_settings
@@ -143,7 +145,8 @@ def _unknown_words(text: str, language: str) -> tuple[str, ...]:
     if key not in _spelling_cache:
         if len(_spelling_cache) > 20000:
             _spelling_cache.clear()
-        _spelling_cache[key] = tuple(prompts.misspelled(text, language))
+        # a listed loanword is not a typo, however foreign it looks to the dictionary
+        _spelling_cache[key] = tuple(w for w in prompts.misspelled(text, language) if not loanwords.listed(w, language))
     return _spelling_cache[key]
 
 

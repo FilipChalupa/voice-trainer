@@ -10,6 +10,11 @@ import re
 import sys
 import unicodedata
 
+try:
+    from trainer.loanwords import respell
+except ImportError:  # started as a plain script from inside the folder
+    from loanwords import respell
+
 _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
 
 
@@ -41,7 +46,8 @@ def _spell_numbers(text: str, language: str) -> str:
 
 
 def normalize(text: str, language: str = "cs") -> list[str]:
-    text = unicodedata.normalize("NFC", _spell_numbers(text, language)).lower()
+    # loanwords in their spoken spelling on both sides: "jazz" in the text and "džez" from Whisper are the same word
+    text = unicodedata.normalize("NFC", respell(_spell_numbers(text, language), language)).lower()
     text = _PUNCT.sub(" ", text)
     return text.split()
 

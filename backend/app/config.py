@@ -291,6 +291,16 @@ for _d in (BASE_DIR, PROMPTS_DIR, VOICES_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 
+def pronounce(text: str, lexicon: dict[str, str] | None, language: str) -> str:
+    """The text as it is said, for turning into phonemes: the voice's own lexicon first, then the built-in list
+    of loanwords and abbreviations espeak reads letter by letter. A word in the lexicon is never touched by the
+    built-in list, so the lexicon can also switch a built-in respelling off (word -> the same word)."""
+    from trainer.loanwords import respell
+
+    lexicon = lexicon or {}
+    return respell(apply_lexicon(text, lexicon), language, frozenset(w.lower() for w in lexicon) | frozenset(v.lower() for v in lexicon.values()))
+
+
 def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
     """Replaces whole words (case-insensitive) by their respelling, longest entries first."""
     if not lexicon:

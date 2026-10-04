@@ -30,7 +30,9 @@ the header shows a running training from every tab. A glossary behind the questi
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
    add your own sentences or read connected text sentence by sentence: built-in paragraphs, public-domain books
    (Čapek, Hašek, Němcová from Wikisource; Carroll, Doyle, Baum from Project Gutenberg), any web page or pasted
-   text. **Reading in one go** keeps the microphone open and shows the text like a teleprompter: every spoken
+   text. Czech paragraphs with loanwords (software, e-mail, jazz, pizza, USB) come with a built-in respelling list:
+   espeak reads such words letter by letter, so the training transcript is rewritten the way the word is said.
+   **Reading in one go** keeps the microphone open and shows the text like a teleprompter: every spoken
    stretch becomes the take of the sentence on screen, Whisper checks each take against its text in the
    background: a take that reads a neighbouring sentence is relabelled, two takes split by a pause are joined,
    the rest of the mismatches land in the review queue; a live speech-to-noise margin warns when the setup
@@ -59,8 +61,8 @@ the header shows a running training from every tab. A glossary behind the questi
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run, with a run of
    another voice of the same language (another microphone) or with the untouched base voice (both read the
    same text back to back), keep a pronunciation list for names and
-   abbreviations espeak reads wrong (applied when this app speaks; Piper itself has no dictionary; words Whisper
-   kept hearing differently while checking the takes are suggested), then download
+   abbreviations espeak reads wrong (applied when this app speaks and to the training transcripts; Piper itself has
+   no dictionary; words Whisper kept hearing differently while checking the takes are suggested), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |

@@ -15,7 +15,7 @@ from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .base import ensure_base_voice
-from .config import LANGUAGES, Voice, apply_lexicon, load_settings
+from .config import LANGUAGES, Voice, load_settings, pronounce
 from .runs import SAFE, find_job_dir, list_exports, read_json
 
 router = APIRouter(prefix="/api", tags=["synthesis"])
@@ -72,6 +72,7 @@ async def post_synthesize(body: dict[str, Any]):
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(502, {"code": "download_failed", "message": f"Could not download the base voice: {exc}"}) from exc
         lexicon = {}
+        language = name
         if body.get("voice_id"):
             lexicon = load_settings(Voice(str(body["voice_id"]))).get("lexicon") or {}
     else:
@@ -81,8 +82,10 @@ async def post_synthesize(body: dict[str, Any]):
         path = job_dir / "export" / name
         if not path.exists():
             raise HTTPException(404, {"code": "not_found", "message": "Model not found"})
-        lexicon = load_settings(Voice(read_json(job_dir / "job.json").get("voice_id") or "")).get("lexicon") or {}
-    text = apply_lexicon(text, lexicon)
+        job = read_json(job_dir / "job.json")
+        lexicon = load_settings(Voice(job.get("voice_id") or "")).get("lexicon") or {}
+        language = str(job.get("language") or "")
+    text = pronounce(text, lexicon, language)
 
     def clamp(value: Any, default: float, low: float, high: float) -> float:
         try:

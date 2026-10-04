@@ -16,6 +16,15 @@ export function LexiconEditor({ voice, onVoices, onError }: Props) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => setEntries(Object.entries(voice.lexicon ?? {})), [voice.id, voice.lexicon]);
+  // the built-in list of loanwords and abbreviations, respelled without any entry of the user's
+  const [builtin, setBuiltin] = useState<{ word: string; spoken: string }[]>([]);
+  const [builtinOpen, setBuiltinOpen] = useState(false);
+  useEffect(() => {
+    api
+      .lexiconBuiltin()
+      .then((r) => setBuiltin(r.items))
+      .catch(() => setBuiltin([]));
+  }, [voice.id]);
   // words Whisper keeps hearing differently than written: likely names and terms worth a respelling
   const [suggestions, setSuggestions] = useState<{ word: string; heard: string; count: number }[]>([]);
   useEffect(() => {
@@ -85,6 +94,23 @@ export function LexiconEditor({ voice, onVoices, onError }: Props) {
                   />
                 ))}
               </Stack>
+            </Stack>
+          )}
+          {builtin.length > 0 && (
+            <Stack spacing={0.5}>
+              <Typography variant="body2" color="text.secondary">
+                {t("lex.builtin", { n: builtin.length })}{" "}
+                <Button size="small" onClick={() => setBuiltinOpen((o) => !o)}>
+                  {builtinOpen ? t("lex.builtinHide") : t("lex.builtinShow")}
+                </Button>
+              </Typography>
+              {builtinOpen && (
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                  {builtin.map((b) => (
+                    <Chip key={b.word} size="small" variant="outlined" label={`${b.word} → ${b.spoken}`} />
+                  ))}
+                </Stack>
+              )}
             </Stack>
           )}
           {entries.length > 0 && (

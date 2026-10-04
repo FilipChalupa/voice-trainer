@@ -287,6 +287,13 @@ def lexicon_suggestions(entries: list[dict[str, Any]], lexicon: dict[str, str], 
     return out[:limit]
 
 
+@router.get("/lexicon/builtin")
+def get_lexicon_builtin():
+    from trainer.loanwords import entries
+
+    return {"items": entries(load_settings(require_voice())["language"])}
+
+
 @router.get("/lexicon/suggestions")
 def get_lexicon_suggestions():
     voice = require_voice()

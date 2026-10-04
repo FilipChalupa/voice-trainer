@@ -163,6 +163,31 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "title": "Otázky: ujištění a údiv",
             "text": "To je tvoje kolo, že ano? Zamkl jsi dveře, viď? Ty jsi tam vážně šel sám? On to opravdu řekl nahlas? Přijdete zítra, že jo? Tohle má být všechno? Vy jste se už viděli? Ona o tom vůbec nevěděla? Nezapomněl jsi na ty klíče, že ne? Takže se sejdeme v sedm? To myslíš vážně? A to vám nikdo neřekl?",
         },
+        {
+            "id": "cizi-kancelar",
+            "title": "Cizí slova: v kanceláři",
+            "text": "Ráno jsem otevřel notebook a přečetl si každý e-mail. Šéf svolal meeting kvůli novému designu aplikace. Náš tým má deadline už v pátek. Software se má aktualizovat přes noc, tak nezapomeň na update. Poslal jsem ti feedback k prezentaci e-mailem. Workshop o managementu se přesouvá na příští týden. Kdo má na starosti hardware v zasedačce? Display na chodbě zase nefunguje. Celý leasing na auta řeší účetní. A interview s novým designérem bude online.",
+        },
+        {
+            "id": "cizi-technika",
+            "title": "Cizí slova: doma u počítače",
+            "text": "Stáhni si ten soubor, download potrvá jen chvilku. Upload fotek na server běží na pozadí. Hudbu pouštím přes bluetooth ze smartphonu. Můj oblíbený playlist má přes sto písniček. Večer poslouchám podcast o vesmíru. YouTube má návod skoro na všechno. Zkus to vyhledat na Googlu. Disk zapoj do USB vedle HDMI kabelu. Browser si pamatuje hesla, ale cache občas smaž. Hacker se do sítě nedostal. Chatbot odpověděl dřív, než jsem dopsal otázku. Disk má pět set gigabytů a je skoro plný. Streaming filmu se zasekl, protože jsme offline.",
+        },
+        {
+            "id": "cizi-jidlo",
+            "title": "Cizí slova: jídlo a pití",
+            "text": "K snídani si dám croissant a pomerančový džus. Na oběd objednáme pizzu se šunkou. V té pizzerii mají i výborné těstoviny. Děti chtějí hranolky a kečup. Sandwich s tuňákem si vezmu s sebou. Menu dne je dnes za stovku. Dědeček si dá večer skleničku whisky. Na dezert bude želé s ovocem a pyré z jablek. Šéfkuchař připravil ragú podle francouzského receptu. Číšník přinesl filé z lososa a džbán vody. V bufetu na nádraží prodávají bagety a kávu.",
+        },
+        {
+            "id": "cizi-kultura",
+            "title": "Cizí slova: kultura a sport",
+            "text": "V sobotu jdeme na jazzový koncert. Ten thriller měl opravdu nečekaný konec. Mám rád, když má film happy end. Ve foyer divadla jsme potkali známé. Večerní show začíná v osm. Shakespeare napsal Hamleta i Romea a Julii. O víkendu pojedeme na hory se snowboardem. Syn jezdí na skateboardu každý den. Rozhodčí ocenil fair play obou týmů. Outsider turnaje nakonec vyhrál. Byl to trochu faux pas, ale nikdo si toho nevšiml. Mám déjà vu, tohle už jsem někde viděl. Ten nový song je fakt cool. Teenager od sousedů hraje v garáži na bicí.",
+        },
+        {
+            "id": "cizi-domacnost",
+            "title": "Cizí slova: chytrá domácnost",
+            "text": "Home Assistant hlásí, že je všechno v pořádku. Senzor na Zigbee má slabou baterii. Televize je připojená přes HDMI a zvuk jde do reproduktorů. Mám pustit Spotify, nebo raději rádio? YouTube nabízí nové video z vašeho oblíbeného kanálu. Přišel vám nový e-mail a dvě SMS. Tiskárna je online, ale skener je offline. Update systému proběhne dnes v noci. Notebook v pracovně se nabíjí. Síť pro hosty je zapnutá do půlnoci. Kamera u dveří zaznamenala pohyb. Na WC svítí světlo už dvacet minut. Smartphone máte na nabíječce v kuchyni.",
+        },
     ],
     "en": [
         {
@@ -309,6 +334,21 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "id": "q-tags",
             "title": "Questions: checking and surprise",
             "text": "That is your bike, is it not? You locked the door, did you not? You really went there alone? He actually said that out loud? You are coming tomorrow, right? Is this supposed to be all? Have you two met already? She did not know about it at all? You did not forget the keys, did you? So we meet at seven? Are you serious about that? And nobody told you?",
+        },
+        {
+            "id": "spell-silent",
+            "title": "Tricky spelling: silent letters",
+            "text": "The colonel walked his dog along the quay. I doubt the plumber will come on Wednesday. She tied a knot in the rope and knelt down. The knight drew his sword without a word. An honest answer is worth an hour of talk. We ate salmon on the island last autumn. He owes a subtle debt to his old teacher. The receipt was folded inside the psalm book. Listen, the castle bell is ringing. Could you fasten the wrapper on that sandwich?",
+        },
+        {
+            "id": "spell-borrowed",
+            "title": "Tricky spelling: borrowed words",
+            "text": "The cafe serves a fine croissant every morning. We queued for an hour outside the ballet. The chef made a bouquet of herbs for the soup. Her fiance plays the cello in a jazz quartet. They left the debris beside the garage. It was a genre he had never tried before. The chauffeur parked the limousine by the facade. Please put the letter in the dossier. The yacht sailed past the lighthouse at dawn. We met at the rendezvous after the matinee.",
+        },
+        {
+            "id": "spell-ough",
+            "title": "Tricky spelling: one spelling, many sounds",
+            "text": "He thought the dough was tough enough. A cough kept her up through the night. The drought left the bough of the oak bare. Although it was rough, the boat came through. She bought a thorough guide to the borough. Their neighbor weighed eight pounds of flour. The choir sang in the aisle of the church. A leopard and a tortoise shared the heir's garden. The sergeant had a recipe for biscuits. Are you sure the ocean is that blue?",
         },
     ],
 }

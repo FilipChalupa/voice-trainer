@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from . import base
-from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, apply_lexicon, current_voice, list_voices, load_settings, now, slugify
+from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, pronounce, slugify
 from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
 from .runs import FINISHED, SAFE, calibration, find_job_dir, list_exports, list_jobs, list_previews, prune_jobs, read_json
@@ -200,8 +200,8 @@ class JobManager:
         job_id = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
         job_dir = voice.jobs_dir / job_id
         (job_dir / "dataset").mkdir(parents=True, exist_ok=True)
-        # Piper's trainer reads "file|text"; "|" inside a transcript would break the CSV
-        lines = [f"{r['id']}.wav|{r['text'].replace('|', ' ')}" for r in items]
+        lexicon = settings.get("lexicon") or {}
+        lines = training_lines(items, lexicon, language)
         (job_dir / "dataset" / "metadata.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
         training = dict(settings["training"])
         audio_dir = voice.recordings_dir
@@ -227,7 +227,7 @@ class JobManager:
             "job_dir": str(job_dir),
             "base_checkpoint": str(base.base_path(language)),
             "from_job": from_job or None,
-            "test_sentences": [apply_lexicon(t, settings.get("lexicon") or {}) for t in LANGUAGES[language]["test_sentences"]],
+            "test_sentences": [pronounce(t, lexicon, language) for t in LANGUAGES[language]["test_sentences"]],
             "created_at": now(),
         }
         (job_dir / "job.json").write_text(json.dumps(job, indent=2, ensure_ascii=False))
@@ -515,6 +515,12 @@ class JobManager:
 
 
 manager = JobManager()
+
+
+def training_lines(items: list[dict[str, Any]], lexicon: dict[str, str], language: str) -> list[str]:
+    """Piper's trainer reads "file|text"; "|" inside a transcript would break the CSV. Words that are not said
+    as written (the voice's lexicon, loanwords) are respelled, so the phonemes match what was actually spoken."""
+    return [f"{r['id']}.wav|{pronounce(r['text'], lexicon, language).replace('|', ' ')}" for r in items]
 
 
 # ----- routes ---------------------------------------------------------------
