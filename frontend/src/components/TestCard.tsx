@@ -33,6 +33,9 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
   const [noise, setNoise] = useState(0.667);
   const [noiseW, setNoiseW] = useState(0.8);
   const [busy, setBusy] = useState(false);
+  // the text written the way it is said, for players without a lexicon (Piper in Home Assistant)
+  const [respelled, setRespelled] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [compare, setCompare] = useState(""); // "<job_id>|<file>" of a second voice to hear right after the first
   const [others, setOthers] = useState<(Job & { voice_name: string })[]>([]); // finished runs of the other voices
@@ -166,7 +169,42 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
               <Button variant="contained" size="large" startIcon={<VolumeUpIcon />} onClick={speak} disabled={busy || !text.trim()}>
                 {busy ? t("test.speaking") : t("test.speak")}
               </Button>
+              <Button
+                onClick={() =>
+                  api
+                    .pronounce(text.trim())
+                    .then((r) => setRespelled(r.text))
+                    .catch((e) => onError(errorText(t, e)))
+                }
+                disabled={!text.trim()}
+              >
+                {t("test.respell")}
+              </Button>
             </Stack>
+            {respelled !== null && (
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  {respelled === text.trim() ? t("test.respellSame") : t("test.respellHint")}
+                </Typography>
+                {respelled !== text.trim() && (
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "flex-start" }}>
+                    <TextField value={respelled} multiline fullWidth size="small" InputProps={{ readOnly: true }} inputProps={{ "aria-label": t("test.respell") }} />
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(respelled).then(
+                          () => setCopied(true),
+                          () => undefined,
+                        );
+                        setTimeout(() => setCopied(false), 1500);
+                      }}
+                    >
+                      {copied ? t("test.copied") : t("test.copy")}
+                    </Button>
+                  </Stack>
+                )}
+              </Stack>
+            )}
 
             {samples.length > 0 && (
               <Box>

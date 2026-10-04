@@ -300,6 +300,11 @@ export function FlowDialog({ open, voiceId, recorder, deviceId, agc, maxSeconds,
           <Typography variant="h3" component="p" sx={{ fontWeight: 600, lineHeight: 1.25, my: 2, fontSize: { xs: 28, sm: 40, md: 48 }, transition: "opacity 150ms" }}>
             {current ? current.text : t("flow.empty")}
           </Typography>
+          {current?.read_as && (
+            <Typography variant="h6" color="primary" sx={{ mb: 1 }}>
+              {t("studio.readAs", { text: current.read_as })}
+            </Typography>
+          )}
           {queue.slice(1, 4).map((p, i) => (
             <Typography key={p.id} variant="h5" color="text.secondary" sx={{ opacity: 0.75 - i * 0.2, fontSize: { xs: 18, sm: 22, md: 26 }, lineHeight: 1.3, mt: 1 }}>
               {p.text}

@@ -8,6 +8,7 @@ import SkipNextIcon from "@mui/icons-material/SkipNext";
 import { type Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
 import { AudioPlayer } from "./AudioPlayer";
+import { issueWords } from "./RecordingList";
 import { stopAll } from "../lib/audio";
 
 type Props = {
@@ -103,7 +104,7 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
               {rec.source && <Chip size="small" variant="outlined" color="info" label={t(`rec.source.${rec.source}` as TKey)} />}
               {rec.quality.issues.map((issue) => (
                 <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
-                  <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issue === "spelling" && rec.quality.unknown_words?.length ? `: ${rec.quality.unknown_words.join(", ")}` : ""}`} />
+                  <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue)}`} />
                 </Tooltip>
               ))}
             </Stack>
@@ -117,6 +118,11 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
                   {t("review.useTranscript")}
                 </Button>
               </Stack>
+            )}
+            {rec.spoken && (
+              <Typography variant="body2" color="text.secondary">
+                {t("rec.spoken", { text: rec.spoken })}
+              </Typography>
             )}
             <TextField inputRef={fieldRef} label={t("review.text")} value={text} onChange={(e) => setText(e.target.value)} multiline minRows={2} fullWidth helperText={t("review.textHint")} />
             <Typography variant="caption" color="text.secondary">

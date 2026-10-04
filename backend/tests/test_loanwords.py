@@ -12,7 +12,7 @@ def test_loanwords_are_respelled_with_their_endings_and_capital():
 
 
 def test_similar_czech_words_and_other_languages_are_left_alone():
-    for text in ("Chata má dva byty a čtyři byty jsou volné.", "Posílám usb kabel a pc.", "Mailand, e-mailing, teamster.", "Pizzicato hraje sám."):
+    for text in ("Chata má dva byty a čtyři byty jsou volné.", "Posílám usb kabel a pc.", "Mailand, e-mailing, teamster.", "Pizzicato hraje sám.", "Ticho, nikdy, divadlo, tisk."):
         assert respell(text) == text
     assert respell("The software update came by e-mail.", "en") == "The software update came by e-mail."
 
@@ -33,13 +33,13 @@ def test_whisper_check_compares_the_spoken_forms():
 def test_listed_words_are_not_typos_and_the_list_is_shown():
     assert listed("deadline") and listed("happy") and listed("softwaru") and not listed("rohlík")
     words = {e["word"] for e in entries("cs")}
-    assert {"software", "e-mail", "jazz", "USB"} <= words and "softwar" not in words
+    assert {"software", "e-mail", "jazz", "USB", "technik…"} <= words and "softwar" not in words
     assert entries("en") == []
 
 
 def test_loanword_paragraphs_are_short_sentences_that_change_when_pronounced():
     loan = [p for p in paragraphs.BUILTIN["cs"] if p["id"].startswith("cizi-")]
-    assert len(loan) == 5
+    assert len(loan) == 5 and len(paragraphs.BUILTIN["cs"]) >= 42
     changed = 0
     for p in loan:
         sentences = prompts.split_sentences(p["text"])
@@ -56,3 +56,11 @@ def test_training_transcripts_are_written_the_way_they_were_said():
     items = [{"id": "a", "text": "Přišel vám nový e-mail."}, {"id": "b", "text": "Turris | běží."}, {"id": "c", "text": "The software works."}]
     assert training_lines(items[:2], {"Turris": "turis"}, "cs") == ["a.wav|Přišel vám nový ímejl.", "b.wav|turis   běží."]
     assert training_lines(items[2:], {}, "en") == ["c.wav|The software works."]
+
+
+def test_hard_ti_di_ni_and_words_without_a_vowel():
+    assert respell("Martin má tip na technický festival.") == "Martyn má typ na technycký festyval."
+    assert respell("Daniel a senior hrají v divizi.") == "Danyjel a senyjor hrají v dyvizi."
+    # a syllabic mark after the l keeps espeak from spelling the word out
+    assert respell("Vlk zvlhl a zmlkl.") == "Vl\u0329k zvl\u0329hl a zml\u0329kl."
+    assert respell("PLK, krk, prst a vlka.") == "PLK, krk, prst a vlka."

@@ -14,10 +14,11 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from trainer import loanwords
+from trainer.spellout import spell_out
 
 from . import prompts
 from .audio import analyze, has_speech, normalize_wav, trim_edges
-from .config import MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, load_settings
+from .config import MIN_MINUTES, RECOMMENDED_MINUTES, TARGET_MINUTES, Voice, load_settings, pronounce
 from .voices import has_consent, require_voice
 
 router = APIRouter(prefix="/api", tags=["recordings"])
@@ -68,6 +69,7 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
         "text": entry.get("text", ""),
         "prompt_id": entry.get("prompt_id"),
         "reviewed": bool(entry.get("reviewed")),
+        "redo": bool(entry.get("redo")),  # marked by a person: record this sentence again
         "verify": entry.get("verify"),  # Whisper check of the flow mode: {status, transcript, similarity}
         "source": entry.get("source"),  # None = recorded here, "import" = from a dataset file, "transcribed" = cut from a long recording
         "created": entry.get("created") or datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
@@ -112,10 +114,20 @@ def list_recordings(voice: Voice) -> list[dict[str, Any]]:
     items.sort(key=lambda r: r["created"])
     flag_inconsistent(items)
     suspicious = _flagged_by_model(voice)
-    language = load_settings(voice)["language"]
+    settings = load_settings(voice)
+    language, lexicon = settings["language"], settings.get("lexicon") or {}
     for r in items:
         extra = []
         quality = r["quality"]
+        if r["redo"]:
+            extra.append("redo")
+        spoken = _spoken(r["text"], language, lexicon)
+        if spoken != r["text"]:
+            r["spoken"] = spoken  # the transcript the training gets: respelled words, numbers in words
+        tricky = _tricky_words(r["text"], language, lexicon)
+        if tricky:
+            extra.append("tricky_word")
+            quality = {**quality, "tricky_words": list(tricky)}
         if r["id"] in suspicious:
             extra.append("model_mismatch")
         verdict = r.get("verify") or {}
@@ -146,8 +158,49 @@ def _unknown_words(text: str, language: str) -> tuple[str, ...]:
         if len(_spelling_cache) > 20000:
             _spelling_cache.clear()
         # a listed loanword is not a typo, however foreign it looks to the dictionary
-        _spelling_cache[key] = tuple(w for w in prompts.misspelled(text, language) if not loanwords.listed(w, language))
+        # ...and an abbreviation that is read in words ("atd.", "např.") is no typo either
+        expanded = set(_TOKEN.findall(spell_out(text, language)))
+        _spelling_cache[key] = tuple(w for w in prompts.misspelled(text, language) if not loanwords.listed(w, language) and w in expanded)
     return _spelling_cache[key]
+
+
+_spoken_cache: dict[tuple, str] = {}
+_tricky_cache: dict[tuple, tuple[str, ...]] = {}
+_TOKEN = re.compile(r"[^\W\d_]+(?:-[^\W\d_]+)*")
+# spellings that are read differently in the language they come from; Czech has none of them in its own words
+_FOREIGN = re.compile(r"th|sh$|ee|oo|ey$|ay|ough|igh|tion|ck$|^wh|ew|ue$", re.IGNORECASE)
+_NO_NUCLEUS = re.compile(r"[bcčdďfghjkmnňpsštťvzž]{2,}", re.IGNORECASE)
+
+
+def _spoken(text: str, language: str, lexicon: dict[str, str]) -> str:
+    key = (language, text, tuple(sorted(lexicon.items())))
+    if key not in _spoken_cache:
+        if len(_spoken_cache) > 20000:
+            _spoken_cache.clear()
+        _spoken_cache[key] = pronounce(text, lexicon, language)
+    return _spoken_cache[key]
+
+
+def _tricky_words(text: str, language: str, lexicon: dict[str, str]) -> tuple[str, ...]:
+    """Words espeak most likely reads differently than a person and nothing respells yet: foreign spellings the
+    dictionary does not know (Flash, Wembley) and words without a vowel (hm, pst). The lexicon is the cure."""
+    if language != "cs":
+        return ()
+    key = (text, tuple(sorted(lexicon)))
+    if key not in _tricky_cache:
+        if len(_tricky_cache) > 20000:
+            _tricky_cache.clear()
+        handled = {w.lower() for w in lexicon}
+        dictionary = prompts._dictionary(language)
+        found = []
+        for word in _TOKEN.findall(text):
+            if word.isupper() or word.lower() in handled or loanwords.listed(word, language):
+                continue
+            foreign = _FOREIGN.search(word) and not (dictionary is not None and (dictionary.lookup(word) or dictionary.lookup(word.lower())))
+            if (foreign or _NO_NUCLEUS.fullmatch(word)) and word not in found:
+                found.append(word)
+        _tricky_cache[key] = tuple(found)
+    return _tricky_cache[key]
 
 
 def _flagged_by_model(voice: Voice) -> set[str]:
@@ -270,6 +323,15 @@ async def put_recording(rid: str, body: dict[str, Any]):
         if "reviewed" in body:
             # a person listened to it and confirmed the text; warnings then no longer queue it for review
             index[rid]["reviewed"] = bool(body["reviewed"])
+            if index[rid]["reviewed"]:
+                index[rid].pop("redo", None)  # confirmed as it is: the mark is settled
+        if "redo" in body:
+            # "record this one again": shown as a warning and queued for review until it is redone or confirmed
+            if body["redo"]:
+                index[rid]["redo"] = True
+                index[rid]["reviewed"] = False
+            else:
+                index[rid].pop("redo", None)
         save_index(voice, index)
     return describe(voice, rid, index[rid])
 
@@ -399,7 +461,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch", "spelling")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch", "spelling", "redo", "tricky_word")},
         "rare_letters": rare,
         "sentence_types": sentence_types(items),
         "duration_histogram": buckets,

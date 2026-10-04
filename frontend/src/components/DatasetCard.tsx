@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Stack, Tooltip, Typography } from "@mui/material";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Box, Button, Card, CardContent, CardHeader, Chip, Stack, Tooltip, Typography } from "@mui/material";
 import DatasetIcon from "@mui/icons-material/Dataset";
 import DownloadIcon from "@mui/icons-material/Download";
 import UploadIcon from "@mui/icons-material/Upload";
-import { api, type DatasetReport, type ImportResult } from "../api";
+import { api, type Coverage, type DatasetReport, type ImportResult } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
 /** What will go into training: amount of audio, warnings, letter coverage, length distribution. */
@@ -21,6 +21,15 @@ export function DatasetCard({ report, disabled, onImported, onError }: Props) {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  // which sounds the takes hold little of (counted on the phonemes the training gets)
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
+  useEffect(() => {
+    if (!report?.count) return setCoverage(null);
+    api
+      .coverage()
+      .then(setCoverage)
+      .catch(() => setCoverage(null));
+  }, [report?.count]);
 
   const importZip = async (file: File | undefined) => {
     if (!file) return;
@@ -105,6 +114,36 @@ export function DatasetCard({ report, disabled, onImported, onError }: Props) {
             <Typography variant="body2" color={report.rare_letters.length ? "warning.main" : "text.secondary"}>
               {report.rare_letters.length ? t("ds.rare", { letters: report.rare_letters.join(", ") }) : t("ds.rareNone")}
             </Typography>
+          )}
+          {coverage?.available && report.count >= 30 && (
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                {t("ds.coverage")}
+              </Typography>
+              {coverage.items.some((i) => i.low) ? (
+                <>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center" sx={{ mt: 0.5 }}>
+                    <Typography variant="body2" color="warning.main">
+                      {t("ds.coverageLow", { n: coverage.low })}
+                    </Typography>
+                    {coverage.items
+                      .filter((i) => i.low)
+                      .map((i) => (
+                        <Chip key={i.sound} size="small" color="warning" variant="outlined" label={`${i.sound} ×${i.count}`} />
+                      ))}
+                  </Stack>
+                  {coverage.suggest.length > 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {t("ds.coverageSuggest", { list: coverage.suggest.map((s) => `${s.title} (+${s.gain})`).join(", ") })}
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  {t("ds.coverageOk")}
+                </Typography>
+              )}
+            </Box>
           )}
           {(report.issues.level_mismatch > 0 || report.issues.noisy > 0) && (
             <Alert severity="warning" variant="outlined">

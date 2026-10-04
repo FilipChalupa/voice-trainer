@@ -47,7 +47,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch" | "spelling";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch" | "spelling" | "redo" | "tricky_word";
 
 export type Recording = {
   id: string;
@@ -58,9 +58,13 @@ export type Recording = {
   url: string;
   peaks: number[];
   reviewed: boolean;
+  /** marked by a person: record this sentence again */
+  redo: boolean;
+  /** the transcript the training gets when it differs from the text: respelled words, numbers in words */
+  spoken?: string;
   verify: { status: "pending" | "ok" | "mismatch" | "error"; transcript?: string; similarity?: number } | null;
   source: "import" | "transcribed" | null;
-  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; issues: QualityIssue[] };
+  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; tricky_words?: string[]; issues: QualityIssue[] };
 };
 
 export type TranscribeState = {
@@ -98,7 +102,8 @@ export type StorageInfo = {
 
 export type ImportResult = { imported: number; skipped: { id: string; reason: string }[]; consent_imported: boolean; count: number; minutes: number };
 
-export type Prompt = { id: string; text: string };
+export type Coverage = { available: boolean; low: number; items: { sound: string; count: number; low: boolean }[]; suggest: { id: string; title: string; gain: number; sounds: string[] }[] };
+export type Prompt = { id: string; text: string; read_as?: string };
 export type Book = { id: string; title: string; author: string; source: string };
 export type Paragraph = { id: string; title: string; sentences: number; recorded: number; preview: string };
 export type Prompts = {
@@ -269,6 +274,9 @@ export const api = {
   },
   updateRecording: (id: string, text: string) => request<Recording>(`/api/recordings/${id}`, json("PUT", { text })),
   redoRecording: (id: string) => request<{ deleted: string; prompt_id: string; text: string }>(`/api/recordings/${id}/redo`, { method: "POST" }),
+  markRedo: (id: string, redo: boolean) => request<Recording>(`/api/recordings/${id}`, json("PUT", { redo })),
+  coverage: () => request<Coverage>("/api/dataset/coverage"),
+  pronounce: (text: string) => request<{ text: string }>("/api/pronounce", json("POST", { text })),
   reviewRecording: (id: string, text: string | null) => request<Recording>(`/api/recordings/${id}`, json("PUT", { reviewed: true, ...(text !== null ? { text } : {}) })),
   deleteRecording: (id: string) => request<{ deleted: string }>(`/api/recordings/${id}`, { method: "DELETE" }),
   restoreRecording: (id: string) => request<Recording>(`/api/recordings/${id}/restore`, { method: "POST" }),

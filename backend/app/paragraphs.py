@@ -188,6 +188,46 @@ BUILTIN: dict[str, list[dict[str, str]]] = {
             "title": "Cizí slova: chytrá domácnost",
             "text": "Home Assistant hlásí, že je všechno v pořádku. Senzor na Zigbee má slabou baterii. Televize je připojená přes HDMI a zvuk jde do reproduktorů. Mám pustit Spotify, nebo raději rádio? YouTube nabízí nové video z vašeho oblíbeného kanálu. Přišel vám nový e-mail a dvě SMS. Tiskárna je online, ale skener je offline. Update systému proběhne dnes v noci. Notebook v pracovně se nabíjí. Síť pro hosty je zapnutá do půlnoci. Kamera u dveří zaznamenala pohyb. Na WC svítí světlo už dvacet minut. Smartphone máte na nabíječce v kuchyni.",
         },
+        {
+            "id": "cisla-jednotky",
+            "title": "Čísla: měření a jednotky",
+            "text": "Venku je 23,5 °C a vlhkost 45 %. Spotřeba za dnešek je 5 kWh. Pračka doběhne za 25 min. Auto jelo 120 km/h. Balík váží 2 kg a měří 30 cm. Do nádrže se vejde 50 l paliva. Účet za elektřinu je 1 250 Kč. Tlak vzduchu je 1 013 hPa. V ložnici je 19 °C, v koupelně 24 °C. Na disku zbývá 120 GB. Rychlost připojení je 100 Mb/s. V noci bude -3 °C a ráno 1 °C. Solární panely dnes vyrobily 12,4 kWh. Baterie je nabitá na 82 %. Vysavač uklidil 35 m za 40 min.",
+        },
+        {
+            "id": "cisla-casy",
+            "title": "Čísla: data, časy a zkratky",
+            "text": "Schůzka začíná ve 14:30 a končí v 16:00. Narodil se 3. května 1985. Dne 1. 5. je státní svátek. Budík zvoní v 6:45. Odjezd je v 7:05 z druhého nástupiště. To je např. tento týden, popř. příští. Koupili jsme chleba, máslo, sýr atd., jen mléko došlo. Přijde cca 20 lidí. Je to na str. 12, tj. hned na začátku. Dovolená trvá od 15. července do 2. srpna. Večerka je ve 22:00, budíček v 6:00. Cesta trvá 10–15 minut. Platnost končí 31. 12. 2026. Zavoláme vám zítra v 9:15.",
+        },
+        {
+            "id": "tvrde-di-ti-ni",
+            "title": "Záludná slova: tvrdé di, ti, ni",
+            "text": "Martin má tip na dobrý festival. Technik opravil tiskárnu během chvilky. Kristina studuje latinu a dějiny. Dinosaurus v muzeu je opravdový unikát. Daniel dostal pozitivní zprávu. Senior i junior hrají ve stejné divizi. Kvalita je důležitější než kvantita. K obědu byl vanilkový pudink. Koupil jsem tiket na vlak do Brna. To je dilema, které řeší celá technická univerzita. Kondiční trénink začíná v sedm. Ztratil identitu i doklady. Matilda a Judita hrají na pianino. Negativní výsledek je dobrá zpráva.",
+        },
+        {
+            "id": "jazykolamy",
+            "title": "Záludná slova: shluky souhlásek a jazykolamy",
+            "text": "Strč prst skrz krk. Vlk zmrzl, zhltl hrst zrn. Šel Prokop přes příkop. Kmotře Petře, nepřepepřete mi toho vepře. Čtvrtek je čtvrtý den v týdnu. Řeřicha roste u řeky pod skálou. Třicet tři stříbrných křepelek přeletělo přes třicet tři stříbrných střech. Pan kaplan v kapli plakal. Naolejuje Julie koleje, nebo nenaolejuje? Od poklopu ke poklopu Kyklop kouli koulí. Na cvičišti čtyři svišti piští. Zvlhl mu límec a zmlkl. Plný džbán vln a slz. Blb to byl, mlč už o tom.",
+        },
+        {
+            "id": "vzacne-hlasky",
+            "title": "Záludná slova: vzácné hlásky",
+            "text": "Džbán s džusem stojí na stole vedle džemu. V džungli žije gorila a gepard. Móda se mění každou sezónu. Zazněl vysoký tón a pak dlouhé sólo. Autobus zastavil u sauny na pauzu. Pneumatika stojí padesát euro. Neutron a neuron nejsou totéž. Leckdo by řekl, že leckdy prší. Fotograf fotí fialky ve Francii. Gól padl v poslední minutě. Guma se válí pod gaučem. Filozof fouká na horkou kávu. Eukalyptus voní po celé koupelně. Kauce za byt je dvacet tisíc. Citrón leží na balkóně. Banka a tango, Kongo a gong. Džíny leží v džípu vedle džbánu.",
+        },
+        {
+            "id": "jmena-mesta",
+            "title": "Jména: města a místa",
+            "text": "Praha, Brno, Ostrava a Plzeň jsou největší města. Z Liberce jedeme přes Hradec Králové do Pardubic. V Olomouci přestoupíme na vlak do Zlína. České Budějovice leží na Vltavě. Ústí nad Labem je kousek od Děčína. Karlovy Vary a Mariánské Lázně jsou lázeňská města. Jihlava leží mezi Prahou a Brnem. V Opavě a Havířově dnes prší. Mladá Boleslav, Kladno a Kolín hlásí zácpy. Z Třebíče do Znojma je to hodinu. Šumava, Krkonoše a Jeseníky čekají sníh. Uherské Hradiště a Kroměříž zvou na slavnosti.",
+        },
+        {
+            "id": "jmena-lide",
+            "title": "Jména: lidé",
+            "text": "Pan Novák volal paní Svobodové. Jana Dvořáková a Petr Černý přijdou v šest. Tomáš Procházka má dnes svátek. Kateřina Kučerová poslala zprávu. Jiří Veselý a Lucie Horáková jsou na cestě. Zítra má narozeniny Eliška Němcová. Marek Pospíšil zvoní u dveří. Tereza Marková se omlouvá, přijde později. Ondřej Hájek a Barbora Králová jsou doma. Václav Jelínek nechal vzkaz. Zuzana Růžičková čeká v kuchyni. Vojtěch Fiala a Anežka Zemanová dorazili. Martin Kříž a Kristina Benešová volali dvakrát.",
+        },
+        {
+            "id": "jmena-mistnosti",
+            "title": "Jména: místnosti a zařízení",
+            "text": "V obývacím pokoji svítí lampa. V ložnici je otevřené okno. Světlo v předsíni se rozsvítilo. Topení v dětském pokoji je vypnuté. V koupelně běží ventilátor. Pračka v prádelně doprala. Garážová vrata jsou zavřená. Na terase je zapnuté osvětlení. Myčka v kuchyni dokončila program. Ve sklepě je zvýšená vlhkost. Kotel v technické místnosti hlásí poruchu. Zásuvka v pracovně je zapnutá. Rolety v jídelně jsou stažené. Čidlo na chodbě zaznamenalo pohyb. Vysavač se vrátil do nabíjecí stanice.",
+        },
     ],
     "en": [
         {

@@ -442,6 +442,11 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
                 disabled={busy || disabled}
                 InputProps={{ disableUnderline: true, sx: { fontSize: { xs: 22, sm: 28 }, lineHeight: 1.3, fontWeight: 500 } }}
               />
+              {current.read_as && text.trim() === current.text && (
+                <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
+                  {t("studio.readAs", { text: current.read_as })}
+                </Typography>
+              )}
               {prompts && prompts.items.length > 1 && (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} noWrap>
                   {t("studio.next")}: {prompts.items[1].text}
@@ -553,6 +558,12 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
               if (playing?.id === rec.id) stopPlayback();
               review.redo(rec).then(() => setInfo(t("studio.redoQueued")));
             }}
+            onMark={(rec) =>
+              api
+                .markRedo(rec.id, !rec.redo)
+                .then(() => refresh())
+                .catch((e) => onError(errorText(t, e)))
+            }
             onEdit={edit}
           />
         </Stack>

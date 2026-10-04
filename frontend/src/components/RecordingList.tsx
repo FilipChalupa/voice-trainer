@@ -8,6 +8,8 @@ import MicIcon from "@mui/icons-material/Mic";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
+import FlagIcon from "@mui/icons-material/Flag";
+import OutlinedFlagIcon from "@mui/icons-material/OutlinedFlag";
 import type { Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
 
@@ -22,11 +24,19 @@ type Props = {
   onTogglePlay: (rec: Recording) => void;
   onDelete: (rec: Recording) => void;
   onRedo: (rec: Recording) => void;
+  /** toggles the "record again" mark */
+  onMark: (rec: Recording) => void;
   onEdit: (rec: Recording, text: string) => Promise<void>;
 };
 
+/** The words a warning is about, for its chip. */
+export function issueWords(rec: Recording, issue: string): string {
+  const words = issue === "spelling" ? rec.quality.unknown_words : issue === "tricky_word" ? rec.quality.tricky_words : undefined;
+  return words?.length ? `: ${words.join(", ")}` : "";
+}
+
 /** Newest-first list of recordings: waveform, transcript (editable), quality warnings, play and delete. */
-export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onRedo, onEdit }: Props) {
+export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onRedo, onMark, onEdit }: Props) {
   const { t } = useI18n();
   const theme = useTheme();
   const [editing, setEditing] = useState<string | null>(null);
@@ -96,6 +106,11 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
               ) : (
                 <Typography variant="body2">{rec.text}</Typography>
               )}
+              {rec.spoken && editing !== rec.id && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                  {t("rec.spoken", { text: rec.spoken })}
+                </Typography>
+              )}
               <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap alignItems="center">
                 <Typography variant="caption" color="text.secondary">
                   #{index(rec)} · {rec.duration.toFixed(1)} s · {t("rec.peakInfo", { peak: Math.round((rec.quality.peak ?? 0) * 100), db: rec.quality.rms_db ?? 0 })}
@@ -107,7 +122,7 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                 )}
                 {rec.quality.issues.map((issue) => (
                   <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
-                    <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issue === "spelling" && rec.quality.unknown_words?.length ? `: ${rec.quality.unknown_words.join(", ")}` : ""}`} sx={{ height: 18, fontSize: 11 }} />
+                    <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue)}`} sx={{ height: 18, fontSize: 11 }} />
                   </Tooltip>
                 ))}
               </Stack>
@@ -138,6 +153,13 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                       }}
                     >
                       <EditIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={t(rec.redo ? "rec.unmarkRedo" : "rec.markRedo")}>
+                  <span>
+                    <IconButton size="small" onClick={() => onMark(rec)} disabled={disabled} color={rec.redo ? "warning" : "default"}>
+                      {rec.redo ? <FlagIcon fontSize="small" /> : <OutlinedFlagIcon fontSize="small" />}
                     </IconButton>
                   </span>
                 </Tooltip>

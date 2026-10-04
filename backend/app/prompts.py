@@ -11,6 +11,8 @@ from typing import Any
 
 import requests
 
+from trainer.spellout import spell_out
+
 from .config import LANGUAGES, PROMPTS_DIR, Voice, load_settings, write_settings
 
 CORPUS_SIZE = 1500
@@ -259,16 +261,17 @@ _SENTENCE_END = re.compile(r"(?:(?<=[.?!…])|(?<=[.?!…][\"'”’)]))\s+(?=[�
 
 def split_sentences(text: str) -> list[str]:
     """Sentences of a text: a sentence ends with . ? ! followed by a capital, unless the dot belongs to an
-    abbreviation or an initial ("dr. Mejzlík", "K. Čapek")."""
+    abbreviation, an initial or a date ("dr. Mejzlík", "K. Čapek", "1. 5. 2026")."""
     out: list[str] = []
     pending = ""
-    for part in _SENTENCE_END.split(text.replace("\r", "")):
-        if not part or not part.strip():
-            continue
+    parts = [p for p in _SENTENCE_END.split(text.replace("\r", "")) if p and p.strip()]
+    for i, part in enumerate(parts):
         candidate = (pending + " " + part).strip() if pending else part.strip()
         last = candidate.rstrip("\"'”’)").split()[-1] if candidate.split() else ""
         word = last.rstrip(".").lower()
-        if last.endswith(".") and (word in ABBREVIATIONS or (len(word) == 1 and word.isalpha())):
+        # "1. 5. 2026": the day of a date is followed by more of the date, not by a new sentence
+        date = re.fullmatch(r"\d{1,2}\.", last) is not None and i + 1 < len(parts) and parts[i + 1].lstrip()[:1].isdigit()
+        if last.endswith(".") and (date or word in ABBREVIATIONS or (len(word) == 1 and word.isalpha())):
             pending = candidate
             continue
         pending = ""
@@ -329,8 +332,13 @@ def next_prompts(voice: Voice, recorded_ids: set[str], count: int = 5) -> dict[s
     prompts, source = all_prompts(voice)
     skipped = set(settings.get("skipped_prompts") or [])
     remaining = [p for p in prompts if p["id"] not in recorded_ids and p["id"] not in skipped]
+    items = []
+    for p in remaining[:count]:
+        # numbers, units, dates and abbreviations in words: the reader sees what the transcript will hold
+        read_as = spell_out(p["text"], settings["language"])
+        items.append({**p, "read_as": read_as} if read_as != p["text"] else p)
     return {
-        "items": remaining[:count],
+        "items": items,
         "total": len(prompts),
         "remaining": len(remaining),
         "source": source,

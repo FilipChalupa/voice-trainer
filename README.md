@@ -30,8 +30,11 @@ the header shows a running training from every tab. A glossary behind the questi
    checks (clipping, too quiet, cut off, length not matching the text); you can edit the transcript, re-record or
    add your own sentences or read connected text sentence by sentence: built-in paragraphs, public-domain books
    (Čapek, Hašek, Němcová from Wikisource; Carroll, Doyle, Baum from Project Gutenberg), any web page or pasted
-   text. Czech paragraphs with loanwords (software, e-mail, jazz, pizza, USB) come with a built-in respelling list:
-   espeak reads such words letter by letter, so the training transcript is rewritten the way the word is said.
+   text. Czech paragraphs with tricky words (loanwords such as software, e-mail, jazz; hard "ti, di, ni" as in
+   technika or Martin; consonant clusters; rare sounds; numbers with units, times, dates and abbreviations; names of
+   towns, people and rooms) come with built-in rules: espeak reads "software" letter by letter, "25 %" as "procento"
+   and "vlk" as an abbreviation, so the training transcript is rewritten the way the sentence is said, and the studio
+   shows how a sentence with numbers is meant to be read.
    **Reading in one go** keeps the microphone open and shows the text like a teleprompter: every spoken
    stretch becomes the take of the sentence on screen, Whisper checks each take against its text in the
    background: a take that reads a neighbouring sentence is relabelled, two takes split by a pause are joined,
@@ -44,7 +47,9 @@ the header shows a running training from every tab. A glossary behind the questi
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
    are marked for review. Names and terms the recording contains can be given to Whisper as a hint (the words of
    the pronunciation lexicon are added by themselves). The dataset overview warns when some takes are much louder, quieter or noisier than the
-   rest (a different microphone or room makes the trained voice uneven). A microphone test measures the room
+   rest (a different microphone or room makes the trained voice uneven). It also counts the sounds the takes hold little of (dž, dz, ó, au, eu…)
+   and names the paragraphs that add them. A take can be marked "record again", and a word espeak most likely
+   misreads is flagged until the lexicon covers it. A microphone test measures the room
    noise and your level before a session, a review mode walks through flagged takes and machine transcripts
    with the keyboard, and a phone in the same network can be used as the microphone (QR code, HTTPS with a
    self-signed certificate); the screen stays on while recording. Every take is kept in the browser until the
@@ -62,7 +67,8 @@ the header shows a running training from every tab. A glossary behind the questi
    another voice of the same language (another microphone) or with the untouched base voice (both read the
    same text back to back), keep a pronunciation list for names and
    abbreviations espeak reads wrong (applied when this app speaks and to the training transcripts; Piper itself has
-   no dictionary; words Whisper kept hearing differently while checking the takes are suggested), then download
+   no dictionary, so a button writes any text the way it is said, to paste into Home Assistant; words Whisper kept
+   hearing differently while checking the takes are suggested), then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |

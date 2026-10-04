@@ -295,3 +295,44 @@ def test_system_and_voice_delete():
     assert other["current"] == "second" and other["voice"]["language"] == "en"
     after = client.delete("/api/voices/second").json()
     assert [v["id"] for v in after["voices"]] == ["filip"] and config.current_voice().id == "filip"
+
+
+def test_take_can_be_marked_for_recording_again_and_tricky_words_are_flagged():
+    rec = client.post("/api/recordings", data={"text": "Na disku Flash je nový software, hm."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
+    # "software" is on the built-in list, "Flash" is respelled too; only the vowel-less "hm" has no cure yet
+    assert item["spoken"] == "Na disku Fleš je nový softvér, hm."
+    assert "tricky_word" in item["quality"]["issues"] and item["quality"]["tricky_words"] == ["hm"]
+    assert "redo" not in item["quality"]["issues"] and item["redo"] is False
+
+    marked = client.put(f"/api/recordings/{rec['id']}", json={"redo": True}).json()
+    assert marked["redo"] is True and marked["reviewed"] is False
+    item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
+    assert "redo" in item["quality"]["issues"]
+    assert client.get("/api/dataset").json()["issues"]["redo"] >= 1
+    # confirming the take as it is settles the mark; the lexicon settles the tricky word
+    assert client.put(f"/api/recordings/{rec['id']}", json={"reviewed": True}).json()["redo"] is False
+    client.put("/api/voice", json={"lexicon": {"hm": "hmm"}})
+    item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
+    assert "tricky_word" not in item["quality"]["issues"] and "redo" not in item["quality"]["issues"]
+    client.put("/api/voice", json={"lexicon": {}})
+    client.delete(f"/api/recordings/{rec['id']}")
+
+
+def test_prompts_with_numbers_say_how_they_are_read_and_text_is_respelled_for_other_players():
+    client.post("/api/prompts/custom", json={"text": "Venku je 23,5 °C a vlhkost 45 %."})
+    first = client.get("/api/prompts?count=1").json()["items"][0]
+    assert first["text"] == "Venku je 23,5 °C a vlhkost 45 %." and first["read_as"] == "Venku je 23 celé 5 stupně Celsia a vlhkost 45 procent."
+    client.post(f"/api/prompts/{first['id']}/skip")
+    assert client.post("/api/pronounce", json={"text": "E-mail o 2 kg softwaru."}).json() == {"text": "Ímejl o 2 kilogramy softvéru."}
+
+
+def test_sound_coverage_counts_rare_sounds_and_suggests_paragraphs():
+    from app import coverage
+
+    counts = coverage.count_sounds(["Džbán s džusem.", "Leckdo má euro a auto."], "cs", {})
+    assert counts["dž"] == 2 and counts["dz"] == 1 and counts["eu"] == 1 and counts["au"] == 1 and counts["ž"] == 0
+    res = client.get("/api/dataset/coverage").json()
+    assert res["available"] is True and res["low"] == 20
+    assert any(i["sound"] == "dž" and i["low"] for i in res["items"])
+    assert res["suggest"] and res["suggest"][0]["gain"] > 0 and "vzacne-hlasky" in [s["id"] for s in res["suggest"]]
