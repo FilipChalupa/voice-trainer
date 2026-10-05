@@ -9,8 +9,8 @@ What goes in:
 - hard "ti, di, ni" stems as rules in the groups espeak already has for them,
 - loanword stems as rules (a rule also works after a preposition, which espeak joins to the next word with a
   hyphen; a word-list entry does not), in their word-final and inflected form,
-- phrases and hyphenated words as word-list entries (they cannot be rules, so after "do", "na"… they fall
-  back to the words they are made of),
+- phrases and hyphenated words as word-list entries, also together with each preposition espeak joins to
+  the next word ("do e-mailu" is looked up as "do e mailu"),
 - vowel-less words and abbreviations as phoneme entries,
 - the voice's own lexicon.
 
@@ -83,6 +83,7 @@ def build_sources(binary: Path, dictsource: Path, data_parent: Path, lexicon: di
     # a rule is tried at the start of a word ("_") and after a hyphen: espeak joins a short word to the
     # preposition before it with one ("do-softwaru"), and reads the pair as a single word
     starts = ["_", "-"]
+    prepositions = sorted({line.split()[0] for line in (dictsource / "cs_list").read_text(encoding="utf-8").splitlines() if "$combine" in line and line.split() and line.split()[0].isalpha()})
     listing: list[str] = []
     rules: dict[str, list[str]] = {}
 
@@ -102,6 +103,9 @@ def build_sources(binary: Path, dictsource: Path, data_parent: Path, lexicon: di
     def phrase(written: str, spoken: str, endings: list[str]) -> None:
         for ending in ["", *endings]:
             listing.append(f"({written}{ending}) {spoken}{ending} $text")
+            # after a preposition espeak looks the words up together with it, a hyphen counting as a space
+            for preposition in prepositions:
+                listing.append(f"({preposition} {written.replace('-', ' ')}{ending}) {preposition} {spoken}{ending} $text")
 
     for written, spoken, endings in _CS:
         if endings == _ANY:

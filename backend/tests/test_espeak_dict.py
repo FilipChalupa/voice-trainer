@@ -29,6 +29,7 @@ def tools(tmp_path_factory):
     "Software se aktualizuje.", "Do softwaru nesahej.", "Přišel nový e-mail.", "O jazzu a jazzové hudbě.", "Martin má tip na festival.",
     "Technika a technický pokrok.", "Do Googlu to nepiš.", "Disk do USB a kabel HDMI.", "Na WC svítí světlo.", "Vlk zvlhl a zmlkl.",
     "Mám iPhone a notebook.", "Home Assistant hlásí update.", "Objednáme pizzu a croissant.", "Na display se nedívej.",
+    "Jdu do e-mailu zase.", "Mluvíme o e-mailu.", "Jdu do Home Assistantu.", "Na happy end, prosím.",
 ])
 def test_dictionary_reads_like_the_respelling(tools, text):
     assert tools("custom", text) == tools("original", respell(text))
