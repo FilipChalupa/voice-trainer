@@ -58,7 +58,7 @@ _CS: list[tuple[str, str, str]] = [
     ("dinosaur", "dynosaur", _ANY), ("martin", "martyn", _ANY), ("kristin", "kristyn", _ANY), ("kristián", "kristyján", _ANY),
     ("sebastian", "sebastyján", _ANY), ("tiráž", "tyráž", _ANY), ("latin", "latyn", _ANY), ("bandit", "bandyt", _ANY),
     ("pozitiv", "pozityv", _ANY), ("negativ", "negatyv", _ANY), ("festival", "festyval", _ANY), ("unikát", "unykát", _ANY),
-    ("tunik", "tunyk", _ANY), ("artikl", "artykl", _ANY), ("nitro", "nytro", _ANY), ("nikaragu", "nykaragu", _ANY),
+    ("tunik", "tunyk", _ANY), ("artikl", "artykl", _ANY), ("nitrogl", "nytrogl", _ANY), ("nikaragu", "nykaragu", _ANY),
     ("senior", "senyjor", _ANY), ("junior", "junyjor", _ANY), ("daniel", "danyjel", _ANY), ("matild", "matyld", _ANY),
     ("judit", "judyt", _ANY), ("destinac", "destynac", _ANY), ("diviz", "dyviz", _ANY), ("dilema", "dylema", _ANY),
     ("identit", "identyt", _ANY), ("kvantit", "kvantyt", _ANY), ("entit", "entyt", _ANY), ("etnik", "etnyk", _ANY),

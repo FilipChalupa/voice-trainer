@@ -55,6 +55,22 @@ export function DeployCard({ jobs }: { jobs: Job[] }) {
           <Alert severity="info" variant="outlined">
             {t("test.ha")}
           </Alert>
+          {job.language === "cs" && (
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                {t("deploy.dictTitle")}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {t("deploy.dictHelp")}
+              </Typography>
+              <Button size="small" variant="outlined" href="/api/espeak-dict" download="cs_dict" startIcon={<DownloadIcon />} sx={{ textTransform: "none" }}>
+                cs_dict
+              </Button>
+              <Box component="pre" sx={{ mt: 1, p: 1, bgcolor: "action.hover", borderRadius: 1, fontSize: 12, overflowX: "auto" }}>
+                {"volumes:\n  - ./piper-data/cs_dict:/usr/src/.venv/lib/python3.13/site-packages/piper/espeak-ng-data/cs_dict:ro"}
+              </Box>
+            </Box>
+          )}
         </Stack>
       </CardContent>
     </Card>

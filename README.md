@@ -76,7 +76,9 @@ the header shows a running training from every tab. A glossary behind the questi
    same text back to back), keep a pronunciation list for names and
    abbreviations espeak reads wrong (applied when this app speaks and to the training transcripts; Piper itself has
    no dictionary, so a button writes any text the way it is said, to paste into Home Assistant; words Whisper kept
-   hearing differently while checking the takes are suggested), then download
+   hearing differently while checking the takes are suggested). For Czech voices the same knowledge is also
+   compiled into espeak-ng's own dictionary (`cs_dict`, in the ZIP and on the deployment card): mounted into the
+   Piper container it makes Home Assistant read loanwords right for any text. Then download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |

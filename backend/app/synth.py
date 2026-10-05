@@ -11,11 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .base import ensure_base_voice
-from .config import LANGUAGES, Voice, load_settings, pronounce
+from .config import BASE_DIR, LANGUAGES, Voice, load_settings, pronounce
 from .runs import SAFE, find_job_dir, list_exports, read_json
 
 router = APIRouter(prefix="/api", tags=["synthesis"])
@@ -129,12 +129,49 @@ wyoming-piper (Docker)
       ports:
         - "10200:10200"
 
+Pronunciation of loanwords (Czech voices)
+  Piper reads text with espeak-ng, which says "software" or "Martin" letter by letter. cs_dict in this ZIP is
+  espeak-ng's Czech dictionary with those words (and your lexicon) corrected. Mount it over the one inside the
+  container and restart it; the path follows the Python version of the image (check with
+  `docker exec wyoming-piper find / -name cs_dict`):
+        - ./voices/cs_dict:/usr/src/.venv/lib/python3.13/site-packages/piper/espeak-ng-data/cs_dict:ro
+  Numbers with units, times and dates are not covered: write them in words in the text you send.
+
 Command line
   python3 -m piper -m {name}.onnx -f out.wav -- "Hello."
 
 Other exported variants (best_mos / best_mel) are alternative checkpoints of the same run; rename the pair of
 files consistently if you prefer one of them.
 """
+
+
+def espeak_dictionary(voice: Voice) -> Path | None:
+    """The Czech espeak-ng dictionary with the built-in pronunciations and this voice's lexicon, compiled once
+    per content. None where it cannot be built (another language, no compiler in this environment)."""
+    from trainer import espeak_dict
+
+    settings = load_settings(voice)
+    if settings["language"] != "cs":
+        return None
+    lexicon = settings.get("lexicon") or {}
+    target = BASE_DIR / "espeak" / espeak_dict.cache_key(lexicon) / "cs_dict"
+    if not target.exists():
+        try:
+            espeak_dict.build(target, lexicon)
+        except Exception:  # noqa: BLE001  (ImportError without Piper, a failed compilation)
+            return None
+    return target
+
+
+@router.get("/espeak-dict")
+def get_espeak_dict():
+    """`cs_dict` to mount over the one inside a Piper container, so Home Assistant reads loanwords right too."""
+    from .voices import require_voice
+
+    path = espeak_dictionary(require_voice())
+    if path is None:
+        raise HTTPException(404, {"code": "not_available", "message": "The pronunciation dictionary is available for Czech voices only"})
+    return FileResponse(path, media_type="application/octet-stream", filename="cs_dict")
 
 
 @router.get("/jobs/{job_id}/bundle")
@@ -156,6 +193,9 @@ def get_bundle(job_id: str):
         if lexicon:
             # for reference only: Piper itself has no pronunciation dictionary, the respellings are applied by this app
             zf.writestr("pronunciation.json", json.dumps(lexicon, indent=2, ensure_ascii=False))
+        dictionary = espeak_dictionary(Voice(job.get("voice_id") or ""))
+        if dictionary is not None:
+            zf.write(dictionary, "cs_dict")
         zf.writestr("training.json", json.dumps({k: job.get(k) for k in ("name", "language", "training", "max_epochs", "recordings", "minutes", "created_at")}, indent=2, ensure_ascii=False))
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})
