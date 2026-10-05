@@ -220,3 +220,57 @@ def test_reconcile_relabels_skipped_sentence_and_merges_split_take(monkeypatch, 
     for r in client.get("/api/recordings").json()["items"]:
         if r["id"] not in before:
             client.delete(f"/api/recordings/{r['id']}")
+
+
+def test_intelligibility_test_scores_the_voice_against_the_base_voice(monkeypatch, tmp_path):
+    from app import intelligibility
+
+    if config.current_voice() is None:
+        client.post("/api/voices", json={"name": "Worker", "owner": "Test Person", "language": "cs"})
+    voice = config.current_voice()
+    job_dir = voice.jobs_dir / "20260102_000000_int"
+    (job_dir / "export").mkdir(parents=True)
+    (job_dir / "export" / "cs_CZ-w-medium.onnx").write_bytes(b"onnx")
+    (job_dir / "export" / "exports.json").write_text(json.dumps([{"variant": "last", "file": "cs_CZ-w-medium.onnx", "checkpoint": "last.ckpt", "size": 4}]))
+    (job_dir / "job.json").write_text(json.dumps({"job_id": job_dir.name, "voice_id": voice.id, "slug": "w", "max_epochs": 10, "training": {}}))
+    (job_dir / "result.json").write_text(json.dumps({"status": "done", "epoch": 10}))
+
+    spoken = []
+    monkeypatch.setattr("app.synth.synthesize", lambda path, text, *scales: spoken.append(text) or wav_bytes(seconds=1.0))
+    monkeypatch.setattr("app.base.ensure_base_voice", lambda language: tmp_path / "base.onnx")
+    mapping = tmp_path / "heard.json"
+    mapping.write_text(json.dumps({
+        "Vlk zmrzl, zhltl hrst zrn.": "Vlk zmrzl a hrst.",  # garbled
+        "Martin má tip na dobrý festival.": "Martin má typ na dobrý festival.",  # the same words, said the same
+        "Venku je 23,5 °C a vlhkost 45 %.": "Venku je 23,5 stupně Celsia a vlhkost 45 procent.",
+    }, ensure_ascii=False))
+    script = tmp_path / "fake_verify_map.py"
+    script.write_text(FAKE_VERIFY_MAP)
+    monkeypatch.setattr(verify, "worker_command", lambda: [verify.sys.executable, str(script), str(mapping)])
+    verify.verifier.stop()
+
+    assert client.post(f"/api/jobs/{job_dir.name}/intelligibility").json()["status"] == "running"
+    state = wait_for(lambda: client.get(f"/api/jobs/{job_dir.name}/intelligibility").json())
+    assert state["status"] == "done", state
+    result = state["result"]
+    sentences = intelligibility.SENTENCES["cs"]
+    assert result["count"] == len(sentences) and result["garbled"] == 1 and result["variant"] == "last"
+    worst = result["items"][0]
+    assert worst["text"] == "Vlk zmrzl, zhltl hrst zrn." and worst["similarity"] < 0.9 and "zrn" in worst["missed"]
+    assert all(i["similarity"] == 1.0 for i in result["items"][1:])
+    assert 90 < result["score"] < 100 and 95 < result["word_accuracy"] < 100
+    # the base voice read the same sentences once and is the yardstick
+    assert result["baseline"] == {"score": result["score"], "word_accuracy": result["word_accuracy"], "garbled": 1}
+    # the voice was given the spoken form of the text
+    assert "Venku je 23 celé 5 stupně Celsia a vlhkost 45 procent." in spoken and "Martyn má typ na dobrý festyval." in spoken
+    assert len(spoken) == 2 * len(sentences)
+    assert client.get(f"/api/jobs/{job_dir.name}/intelligibility/audio/{worst['index']}").status_code == 200
+    assert next(j for j in client.get("/api/jobs").json()["items"] if j["job_id"] == job_dir.name)["intelligibility"] == result["score"]
+
+    # the second run reuses the yardstick
+    spoken.clear()
+    client.post(f"/api/jobs/{job_dir.name}/intelligibility")
+    assert wait_for(lambda: client.get(f"/api/jobs/{job_dir.name}/intelligibility").json())["status"] == "done"
+    assert len(spoken) == len(sentences)
+    verify.verifier.stop()
+    client.delete(f"/api/jobs/{job_dir.name}")

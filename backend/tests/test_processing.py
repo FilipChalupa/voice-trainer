@@ -92,3 +92,35 @@ def test_api_saves_the_settings_analyses_and_previews_a_take(tmp_path):
     assert np.array_equal(again, original)
     client.put("/api/voice", json={"processing": config.DEFAULT_PROCESSING})
     client.delete(f"/api/recordings/{rec['id']}")
+
+
+def test_tone_of_a_take_and_of_a_day_of_takes():
+    from app.audio import tone_db
+    from app.recordings import flag_inconsistent
+
+    assert abs(tone_db(tone([150, 600]), SR)) < 0.5  # as much bass as middle
+    assert 5 < tone_db(tone([150], amplitude=0.4) + tone([600]), SR) < 7  # the bass twice as strong: +6 dB
+    assert tone_db(np.zeros(100, np.float32), SR) is None
+
+    def take(day, tone_value):
+        return {"created": f"2026-10-{day:02d}T10:00:00+00:00", "quality": {"issues": [], "speech_db": -20.0, "noise_db": -60.0, "tone_db": tone_value}}
+
+    # one take far off among even ones; a whole second day recorded closer to the microphone
+    items = [take(1, 0.3 * (i % 5 - 2)) for i in range(30)] + [take(1, 5.5)] + [take(2, 3.4 + 0.2 * (i % 3)) for i in range(10)]
+    flag_inconsistent(items)
+    flagged = [("tone_mismatch" in r["quality"]["issues"]) for r in items]
+    assert flagged[:30] == [False] * 30 and flagged[30] is True and flagged[31:] == [True] * 10
+    even = [take(1, 0.3 * (i % 5 - 2)) for i in range(30)] + [take(2, 1.5) for _ in range(10)]
+    flag_inconsistent(even)
+    assert not any("tone_mismatch" in r["quality"]["issues"] for r in even)
+
+
+def test_microphone_test_measures_the_tone_of_a_sentence():
+    if client.get("/api/voices").json()["voice"] is None:
+        client.post("/api/voices", json={"name": "Proc", "owner": "Test Person", "language": "cs"})
+    buf = io.BytesIO()
+    boomy = tone([150], seconds=3.0, amplitude=0.3) + tone([600], seconds=3.0, amplitude=0.1)
+    sf.write(buf, boomy, SR, subtype="PCM_16", format="WAV")
+    res = client.post("/api/processing/measure", files={"file": ("a.wav", buf.getvalue(), "audio/wav")}).json()
+    assert 8 < res["tone_db"] < 11 and res["bass_corrected"] is False and "dataset_tone_db" in res
+    assert client.post("/api/processing/measure", files={"file": ("a.wav", b"nope", "audio/wav")}).status_code == 400

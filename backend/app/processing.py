@@ -6,18 +6,17 @@ import io
 from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from .audio import apply_processing, eq_gain
+from .audio import TONE_N_FFT as N_FFT, apply_processing, eq_gain, normalize_wav, speech_spectrum, tone_db
 from .config import Voice, clean_processing, load_settings
-from .recordings import SAFE_ID, load_index
+from .recordings import SAFE_ID, list_recordings, load_index
 from .voices import require_voice
 
 router = APIRouter(prefix="/api", tags=["processing"])
 
 SAMPLE_TAKES = 40
-N_FFT = 2048
 BANDS: list[tuple[str, float, float]] = [("sub", 20, 90), ("bass", 90, 250), ("mid", 250, 1000), ("presence", 1000, 4000), ("air", 4000, 11000)]
 # bass relative to the middle band in a voice recorded at a normal distance; a close dynamic microphone adds 3-6 dB
 NEUTRAL_BASS_DB = -0.5
@@ -43,16 +42,12 @@ def average_spectrum(voice: Voice) -> tuple[np.ndarray, np.ndarray] | None:
                 data, sr = sf.read(str(voice.recordings_dir / f"{rid}.wav"), dtype="float32", always_2d=True)
             except Exception:  # noqa: BLE001
                 continue
-            x = data[:, 0]
-            if x.shape[0] < N_FFT or (rate and sr != rate):
+            spectrum = speech_spectrum(data[:, 0], sr) if not rate or sr == rate else None
+            if spectrum is None:
                 continue
             rate = sr
-            windows = np.lib.stride_tricks.sliding_window_view(x, N_FFT)[:: N_FFT // 2] * np.hanning(N_FFT)
-            power = np.abs(np.fft.rfft(windows, axis=1)) ** 2
-            energy = power.sum(axis=1)
-            speech = power[energy > np.percentile(energy, 60)]
-            total = speech.sum(axis=0) if total is None else total + speech.sum(axis=0)
-            frames += speech.shape[0]
+            total = spectrum[1] if total is None else total + spectrum[1]
+            frames += spectrum[2]
         if total is None or not frames:
             return None
         _cache.clear()
@@ -128,3 +123,23 @@ def post_preview(body: dict[str, Any]) -> Response:
     buffer = io.BytesIO()
     sf.write(buffer, apply_processing(data[:, 0], sr, _body_processing(body, voice)), sr, subtype="PCM_16", format="WAV")
     return Response(buffer.getvalue(), media_type="audio/wav")
+
+
+@router.post("/processing/measure")
+async def post_measure(file: UploadFile = File(...)) -> dict[str, Any]:
+    """The tone of one freshly recorded sentence (the microphone test) next to the tone of the takes so far."""
+    import soundfile as sf
+
+    voice = require_voice()
+    try:
+        wav, _ = normalize_wav(await file.read())
+        data, sr = sf.read(io.BytesIO(wav), dtype="float32", always_2d=True)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, {"code": "bad_audio", "message": f"Could not decode audio: {exc}"}) from exc
+    tones = sorted(r["quality"]["tone_db"] for r in list_recordings(voice) if r["quality"].get("tone_db") is not None)
+    settings = load_settings(voice)["processing"]
+    return {
+        "tone_db": tone_db(data[:, 0], sr),
+        "dataset_tone_db": tones[len(tones) // 2] if len(tones) >= 5 else None,
+        "bass_corrected": settings["bass_db"] <= -1,
+    }

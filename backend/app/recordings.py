@@ -82,10 +82,15 @@ def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
 
 LEVEL_TOLERANCE_DB = 6.0  # louder/quieter than the typical recording by more than this = a different setup
 NOISE_TOLERANCE_DB = 10.0
+# Bass against the middle of the voice varies by about 1.3 dB from sentence to sentence; another microphone or
+# distance moves it by 3-4 dB. One take has to be far off, a whole day of takes only clearly off.
+TONE_TOLERANCE_DB = 4.0
+TONE_DAY_TOLERANCE_DB = 2.5
+TONE_DAY_MIN_TAKES = 8
 
 
 def flag_inconsistent(items: list[dict[str, Any]]) -> None:
-    """Marks recordings whose loudness or background noise differs a lot from the rest of the set.
+    """Marks recordings whose loudness, background noise or tone differs a lot from the rest of the set.
 
     Such takes usually come from another microphone, distance or room; a voice trained on them sounds uneven.
     """
@@ -95,9 +100,20 @@ def flag_inconsistent(items: list[dict[str, Any]]) -> None:
         return
     level_median = sorted(levels)[len(levels) // 2]
     noise_median = sorted(noises)[len(noises) // 2] if noises else None
+    tones = [r["quality"].get("tone_db") for r in items if r["quality"].get("tone_db") is not None]
+    tone_median = sorted(tones)[len(tones) // 2] if len(tones) >= 5 else None
+    off_days: set[str] = set()
+    if tone_median is not None:
+        days: dict[str, list[float]] = {}
+        for r in items:
+            if r["quality"].get("tone_db") is not None:
+                days.setdefault(str(r["created"])[:10], []).append(r["quality"]["tone_db"])
+        off_days = {day for day, values in days.items() if len(values) >= TONE_DAY_MIN_TAKES and abs(sorted(values)[len(values) // 2] - tone_median) > TONE_DAY_TOLERANCE_DB}
     for r in items:
         q = r["quality"]
         issues = list(q["issues"])
+        if tone_median is not None and q.get("tone_db") is not None and (abs(q["tone_db"] - tone_median) > TONE_TOLERANCE_DB or str(r["created"])[:10] in off_days):
+            issues.append("tone_mismatch")
         if q.get("speech_db") is not None and abs(q["speech_db"] - level_median) > LEVEL_TOLERANCE_DB:
             issues.append("level_mismatch")
         if noise_median is not None and q.get("noise_db") is not None and q["noise_db"] > max(noise_median + NOISE_TOLERANCE_DB, -55.0):
@@ -461,7 +477,7 @@ def dataset_report(voice: Voice) -> dict[str, Any]:
         "recommended_minutes": RECOMMENDED_MINUTES,
         "target_minutes": TARGET_MINUTES,
         "flagged": len(flagged),
-        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch", "spelling", "redo", "tricky_word")},
+        "issues": {issue: sum(1 for r in items if issue in r["quality"]["issues"]) for issue in ("cut_start", "cut_end", "clipping", "too_quiet", "silent", "text_mismatch", "level_mismatch", "noisy", "model_mismatch", "transcript_mismatch", "spelling", "redo", "tricky_word", "tone_mismatch")},
         "rare_letters": rare,
         "sentence_types": sentence_types(items),
         "duration_histogram": buckets,

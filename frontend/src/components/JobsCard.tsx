@@ -4,6 +4,8 @@ import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import { CheckDialog } from "./CheckDialog";
+import { IntelligibilityDialog } from "./IntelligibilityDialog";
+import HearingIcon from "@mui/icons-material/Hearing";
 import { api, type Job } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 
@@ -15,6 +17,7 @@ const STATUSES = new Set(["done", "failed", "cancelled", "running", "interrupted
 export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Props) {
   const { t } = useI18n();
   const [checking, setChecking] = useState<Job | null>(null);
+  const [testing, setTesting] = useState<Job | null>(null);
   const remove = async (id: string) => {
     try {
       await api.deleteJob(id);
@@ -38,6 +41,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
                   <TableCell>{t("jobs.data")}</TableCell>
                   <TableCell>{t("jobs.epochs")}</TableCell>
                   <TableCell>{t("jobs.quality")}</TableCell>
+                  <TableCell>{t("jobs.intelligibility")}</TableCell>
                   <TableCell>{t("jobs.voice")}</TableCell>
                   <TableCell />
                 </TableRow>
@@ -61,6 +65,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
                       {job.status === "running" ? liveEpoch : (job.epoch ?? 0)} / {job.max_epochs}
                     </TableCell>
                     <TableCell>{job.validation_last?.val_mos != null ? job.validation_last.val_mos.toFixed(2) : "–"}</TableCell>
+                    <TableCell>{job.intelligibility != null ? `${job.intelligibility.toFixed(1)} %` : "–"}</TableCell>
                     <TableCell>
                       {job.bundle_url ? (
                         <Button size="small" variant="outlined" startIcon={<DownloadIcon />} href={job.bundle_url} download>
@@ -71,6 +76,13 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
                       )}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                      {job.exports.length > 0 && (
+                        <Tooltip title={t("jobs.intelligibilityTooltip")}>
+                          <IconButton size="small" onClick={() => setTesting(job)}>
+                            <HearingIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {job.exports.length > 0 && (
                         <Tooltip title={t("jobs.checkTooltip")}>
                           <IconButton size="small" onClick={() => setChecking(job)}>
@@ -93,6 +105,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError }: Prop
           </Box>
         )}
       <CheckDialog job={checking} onClose={() => setChecking(null)} onError={onError} />
+      <IntelligibilityDialog job={testing} onClose={() => setTesting(null)} onChanged={onChanged} onError={onError} />
     </Box>
   );
 }

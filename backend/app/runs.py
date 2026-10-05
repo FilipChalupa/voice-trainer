@@ -84,6 +84,7 @@ def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | N
         "max_epochs": job.get("max_epochs"),
         "from_job": job.get("from_job"),
         "processing": job.get("processing"),
+        "intelligibility": (read_json(job_dir / "intelligibility" / "result.json") or {}).get("score"),
         "epoch": result.get("epoch"),
         "validation_last": (result.get("validation") or [None])[-1],
         "exports": exports,

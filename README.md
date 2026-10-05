@@ -47,7 +47,9 @@ the header shows a running training from every tab. A glossary behind the questi
    memo) can be imported too: Whisper transcribes it and it is cut into sentences at the pauses; the transcripts
    are marked for review. Names and terms the recording contains can be given to Whisper as a hint (the words of
    the pronunciation lexicon are added by themselves). The dataset overview warns when some takes are much louder, quieter or noisier than the
-   rest (a different microphone or room makes the trained voice uneven). It also counts the sounds the takes hold little of (dž, dz, ó, au, eu…)
+   rest (a different microphone or room makes the trained voice uneven). Takes with clearly more or less bass than the rest (another distance from the
+   microphone) are flagged too, and the microphone test says when the voice sounds boomy or different from the
+   takes so far. It also counts the sounds the takes hold little of (dž, dz, ó, au, eu…)
    and names the paragraphs that add them. A take can be marked "record again", and a word espeak most likely
    misreads is flagged until the lexicon covers it. A microphone test measures the room
    noise and your level before a session, a review mode walks through flagged takes and machine transcripts
@@ -66,6 +68,9 @@ the header shows a running training from every tab. A glossary behind the questi
    stops by itself when the validation loss has not improved for a number of validations (patience). Afterwards
    the trained voice can read every training sentence back; takes it cannot reproduce (misread, wrong
    transcript, noise) are listed for a listen and flagged in the recording list.
+   An **intelligibility test** has the trained voice read a fixed set of tricky sentences while Whisper writes
+   down what it hears: one number to compare runs by (next to the same number for the untouched base voice)
+   and the list of sentences and words the voice garbles.
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run, with a run of
    another voice of the same language (another microphone) or with the untouched base voice (both read the
    same text back to back), keep a pronunciation list for names and

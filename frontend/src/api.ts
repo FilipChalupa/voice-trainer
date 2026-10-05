@@ -60,7 +60,7 @@ export type VoicesPayload = {
   voice: VoiceSettings | null;
 };
 
-export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch" | "spelling" | "redo" | "tricky_word";
+export type QualityIssue = "cut_start" | "cut_end" | "silent" | "clipping" | "too_quiet" | "text_mismatch" | "unreadable" | "level_mismatch" | "noisy" | "model_mismatch" | "transcript_mismatch" | "spelling" | "redo" | "tricky_word" | "tone_mismatch";
 
 export type Recording = {
   id: string;
@@ -77,7 +77,7 @@ export type Recording = {
   spoken?: string;
   verify: { status: "pending" | "ok" | "mismatch" | "error"; transcript?: string; similarity?: number } | null;
   source: "import" | "transcribed" | null;
-  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; tricky_words?: string[]; issues: QualityIssue[] };
+  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; tone_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; tricky_words?: string[]; issues: QualityIssue[] };
 };
 
 export type TranscribeState = {
@@ -100,6 +100,25 @@ export type CheckState = {
   progress: { current: number; total: number } | null;
   error: string | null;
   result: { job_id: string; variant: string; created_at: string; count: number; median: number; flagged: number; items: CheckRow[] } | null;
+};
+
+export type IntelligibilityRow = { index: number; text: string; heard: string; similarity: number; missed: string[] };
+export type IntelligibilityState = {
+  status: "idle" | "running" | "done" | "failed";
+  job_id: string | null;
+  progress: { current: number; total: number } | null;
+  error: string | null;
+  result: {
+    job_id: string;
+    variant: string;
+    created_at: string;
+    score: number;
+    word_accuracy: number;
+    garbled: number;
+    count: number;
+    baseline: { score: number; word_accuracy: number; garbled: number } | null;
+    items: IntelligibilityRow[];
+  } | null;
 };
 
 export type StorageJob = { job_id: string; checkpoints: number; exports: number; cache: number; previews: number; total: number };
@@ -212,6 +231,8 @@ export type Job = {
   stopped_early: boolean;
   from_job?: string | null;
   processing?: Processing | null;
+  /** score of the last intelligibility test, 0-100 */
+  intelligibility?: number | null;
   previews: number;
 };
 
@@ -307,6 +328,13 @@ export const api = {
   skipPrompt: (id: string) => request<{ skipped: string }>(`/api/prompts/${id}/skip`, { method: "POST" }),
   dataset: () => request<DatasetReport>("/api/dataset"),
   check: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`),
+  intelligibility: (jobId: string) => request<IntelligibilityState>(`/api/jobs/${jobId}/intelligibility`),
+  startIntelligibility: (jobId: string) => request<IntelligibilityState>(`/api/jobs/${jobId}/intelligibility`, { method: "POST" }),
+  measureTone: (wav: Blob) => {
+    const form = new FormData();
+    form.append("file", wav, "sample.wav");
+    return request<{ tone_db: number | null; dataset_tone_db: number | null; bass_corrected: boolean }>("/api/processing/measure", { method: "POST", body: form });
+  },
   startCheck: (jobId: string) => request<CheckState>(`/api/jobs/${jobId}/check`, { method: "POST" }),
   transcribe: () => request<TranscribeState>("/api/transcribe"),
   startTranscribe: (audio: File, hints = "") => {

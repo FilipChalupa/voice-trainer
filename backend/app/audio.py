@@ -115,6 +115,35 @@ def has_speech(wav: bytes) -> bool:
     return _speech_bounds(data[:, 0], sr) is not None
 
 
+TONE_N_FFT = 2048
+
+
+def speech_spectrum(audio: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray, int] | None:
+    """Summed power spectrum of the louder (speech) frames of a take: (frequencies, power, number of frames)."""
+    if audio.shape[0] < TONE_N_FFT:
+        return None
+    windows = np.lib.stride_tricks.sliding_window_view(audio, TONE_N_FFT)[:: TONE_N_FFT // 2] * np.hanning(TONE_N_FFT)
+    power = np.abs(np.fft.rfft(windows, axis=1)) ** 2
+    energy = power.sum(axis=1)
+    speech = power[energy > np.percentile(energy, 60)]
+    if not speech.shape[0]:
+        return None
+    return np.fft.rfftfreq(TONE_N_FFT, 1.0 / sr), speech.sum(axis=0), speech.shape[0]
+
+
+def tone_db(audio: np.ndarray, sr: int) -> float | None:
+    """How bass-heavy a take is: the 90-250 Hz band against the 250-1000 Hz band, in dB. Around 0 for a voice
+    at a normal distance from the microphone, +3 and more when it is too close."""
+    spectrum = speech_spectrum(audio, sr)
+    if spectrum is None:
+        return None
+    freqs, power, _ = spectrum
+    bass, mid = power[(freqs >= 90) & (freqs < 250)].sum(), power[(freqs >= 250) & (freqs < 1000)].sum()
+    if bass <= 0 or mid <= 0:
+        return None
+    return round(10 * float(np.log10(bass / mid)), 1)
+
+
 def analyze(path, text: str | None = None) -> dict:
     """Waveform peaks + quality heuristics for one recording (optionally checked against its text)."""
     try:
@@ -167,6 +196,7 @@ def analyze(path, text: str | None = None) -> dict:
             "rms_db": round(20 * np.log10(rms + 1e-9), 1),
             "speech_db": speech_db,
             "noise_db": noise_db,
+            "tone_db": tone_db(audio, sr) if bounds is not None else None,
             "speech_seconds": round(speech_seconds, 2),
             "chars_per_second": round(chars_per_second, 1) if chars_per_second else None,
             "issues": issues,

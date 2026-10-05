@@ -114,7 +114,30 @@ class Verifier:
             self._proc.stdin.flush()
         return {"status": "pending"}
 
+    def request(self, task_id: str, path: Path, text: str, language: str, on_result) -> None:
+        """Transcribes any file and hands the worker's answer ({event, transcript, similarity} or an error) to
+        ``on_result``; used by the intelligibility test, which has no recording to store the verdict with."""
+        from .jobs import manager
+
+        if manager.is_running():
+            raise HTTPException(409, {"code": "already_running", "message": "Training is running; Whisper needs the GPU too"})
+        task = {"id": task_id, "path": str(path), "text": text, "language": language, "on_result": on_result}
+        with self._lock:
+            if not self.running():
+                self._start()
+            self._pending[task_id] = task
+            self._last_used = time.time()
+            assert self._proc and self._proc.stdin
+            self._proc.stdin.write(json.dumps({k: task[k] for k in ("id", "path", "text", "language")}, ensure_ascii=False) + "\n")
+            self._proc.stdin.flush()
+
     def _store(self, task: dict[str, Any], ev: dict[str, Any]) -> None:
+        if task.get("on_result"):
+            try:
+                task["on_result"](ev)
+            except Exception:  # noqa: BLE001
+                pass
+            return
         voice = Voice(task["voice_id"])
         with self._lock:
             index = load_index(voice)

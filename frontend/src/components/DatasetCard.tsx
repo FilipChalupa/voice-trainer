@@ -145,9 +145,9 @@ export function DatasetCard({ report, disabled, onImported, onError }: Props) {
               )}
             </Box>
           )}
-          {(report.issues.level_mismatch > 0 || report.issues.noisy > 0) && (
+          {(report.issues.level_mismatch > 0 || report.issues.noisy > 0 || report.issues.tone_mismatch > 0) && (
             <Alert severity="warning" variant="outlined">
-              {t("ds.inconsistent", { level: report.issues.level_mismatch, noisy: report.issues.noisy })}
+              {t("ds.inconsistent", { level: report.issues.level_mismatch, noisy: report.issues.noisy, tone: report.issues.tone_mismatch ?? 0 })}
             </Alert>
           )}
           <Alert severity={report.ready ? "success" : "warning"} variant="outlined">

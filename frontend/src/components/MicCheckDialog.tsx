@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
 import MicIcon from "@mui/icons-material/Mic";
-import { type Recording } from "../api";
+import { api, type Recording } from "../api";
 import { useI18n } from "../i18n";
 import { Recorder } from "../lib/recorder";
 import { LevelMeter } from "./LevelMeter";
 
 type Props = { open: boolean; recorder: Recorder; deviceId: string; agc: boolean; sentence: string; recordings: Recording[]; onClose: () => void; onDone?: () => void; onError: (message: string) => void };
 type Step = "intro" | "silence" | "speech" | "result";
-type Result = { noiseDb: number; speechDb: number; peak: number; snr: number; previousDb: number | null };
+type Result = { noiseDb: number; speechDb: number; peak: number; snr: number; previousDb: number | null; tone: { tone_db: number | null; dataset_tone_db: number | null; bass_corrected: boolean } | null };
+
+/** Bass this far above the middle of the voice means the microphone is too close (measured the same way as on the takes). */
+const BOOMY_DB = 2.5;
 
 const db = (x: number) => 20 * Math.log10(Math.max(x, 1e-6));
 
@@ -61,6 +64,8 @@ export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, record
         setPeak(l.peak);
       }, { silenceMs: 1100, minSeconds: 1.2 });
       const m = measure(spoken.samples);
+      // the tone is measured by the server, the same way as on the takes, so the numbers compare
+      const tone = await api.measureTone(spoken.wav).catch(() => null);
       const previous = recordings.map((r) => r.quality.speech_db).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
       setResult({
         noiseDb: db(noiseRef.current),
@@ -68,6 +73,7 @@ export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, record
         peak: m.peak,
         snr: db(m.speechRms) - db(noiseRef.current),
         previousDb: previous.length >= 5 ? previous[Math.floor(previous.length / 2)] : null,
+        tone,
       });
       setStep("result");
       onDone?.();
@@ -88,6 +94,17 @@ export function MicCheckDialog({ open, recorder, deviceId, agc, sentence, record
     if (result.snr < 25) advice.push({ severity: "warning", text: t("mic.lowSnr", { snr: result.snr.toFixed(0) }) });
     if (result.previousDb !== null && Math.abs(result.speechDb - result.previousDb) > 6) {
       advice.push({ severity: "warning", text: t("mic.differentLevel", { now: result.speechDb.toFixed(0), before: result.previousDb.toFixed(0) }) });
+    }
+    const tone = result.tone;
+    if (tone && tone.tone_db !== null) {
+      const now = tone.tone_db.toFixed(1);
+      if (tone.dataset_tone_db !== null && Math.abs(tone.tone_db - tone.dataset_tone_db) > BOOMY_DB) {
+        advice.push({ severity: "warning", text: t(tone.tone_db > tone.dataset_tone_db ? "mic.toneCloser" : "mic.toneFarther", { now, before: tone.dataset_tone_db.toFixed(1) }) });
+      } else if (tone.tone_db > BOOMY_DB) {
+        advice.push({ severity: "warning", text: t(tone.bass_corrected ? "mic.boomyCorrected" : "mic.boomy", { now }) });
+      } else {
+        advice.push({ severity: "success", text: t("mic.toneOk", { now }) });
+      }
     }
   }
 
