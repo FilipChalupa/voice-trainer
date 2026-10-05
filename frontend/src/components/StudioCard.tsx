@@ -28,6 +28,9 @@ import { FlowDialog, type Summary } from "./FlowDialog";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 
+/** An alert with buttons on its right: the buttons sit in the middle of the text, not at its top. */
+const ACTION_ALERT = { alignItems: "center", "& .MuiAlert-action": { pt: 0, alignItems: "center" } } as const;
+
 const PREF_PREFIX = "voice-trainer.studio.";
 function readPref(key: string): string | null {
   try {
@@ -368,8 +371,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
           {waiting > 0 && !flowOpen && (
             <Alert
               severity="warning"
+              sx={ACTION_ALERT}
               action={
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ whiteSpace: "nowrap" }}>
                   <Button size="small" variant="contained" color="warning" onClick={uploadWaiting} disabled={flushing || busy}>
                     {t("pending.upload")}
                   </Button>
@@ -386,8 +390,9 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             <Alert
               severity="info"
               variant="outlined"
+              sx={ACTION_ALERT}
               action={
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ whiteSpace: "nowrap" }}>
                   <Button size="small" variant="contained" startIcon={<SettingsVoiceIcon />} onClick={() => setMicCheckOpen(true)} disabled={disabled || busy}>
                     {t("studio.micCheck")}
                   </Button>

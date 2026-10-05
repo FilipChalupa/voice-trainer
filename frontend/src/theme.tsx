@@ -18,7 +18,14 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         shape: { borderRadius: 12 },
         components: {
           MuiCard: { defaultProps: { elevation: 0 }, styleOverrides: { root: { border: "1px solid", borderColor: prefersDark ? "#1f2a44" : "#e2e8f0" } } },
-          MuiButton: { defaultProps: { disableElevation: true } },
+          MuiButton: {
+            defaultProps: { disableElevation: true },
+            // text buttons have next to no side padding by default: the label touches the edge of the hover area
+            variants: [
+              { props: { variant: "text", size: "small" }, style: { paddingInline: 10 } },
+              { props: { variant: "text", size: "medium" }, style: { paddingInline: 12 } },
+            ],
+          },
         },
       }),
     [prefersDark],
