@@ -4,11 +4,12 @@ import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import DownloadIcon from "@mui/icons-material/Download";
 import { type Job } from "../api";
 import { useI18n, type TKey } from "../i18n";
+import { ServerDeploy } from "./ServerDeploy";
 
 const VARIANTS = new Set(["last", "best_mos", "best_mel"]);
 
 /** Getting the voice out: the ZIP bundle, the single files and the Home Assistant steps. */
-export function DeployCard({ jobs }: { jobs: Job[] }) {
+export function DeployCard({ jobs, onError }: { jobs: Job[]; onError: (message: string) => void }) {
   const { t } = useI18n();
   const runs = useMemo(() => jobs.filter((j) => j.exports.length > 0), [jobs]);
   const [jobId, setJobId] = useState("");
@@ -55,6 +56,7 @@ export function DeployCard({ jobs }: { jobs: Job[] }) {
           <Alert severity="info" variant="outlined">
             {t("test.ha")}
           </Alert>
+          <ServerDeploy key={job.job_id} job={job} onError={onError} />
           {job.language === "cs" && (
             <Box>
               <Typography variant="subtitle2" gutterBottom>

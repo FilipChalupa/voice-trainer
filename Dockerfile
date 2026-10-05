@@ -39,11 +39,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && pip install openai-whisper==20250625 \
     && python3 -c "import torch, torchaudio, whisper; print('torch', torch.__version__, 'torchaudio', torchaudio.__version__, 'whisper', whisper.__version__)"
 
+# ssh for "deploy to the server" (a later layer, so the long Piper build above stays cached)
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-client && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY backend/requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY backend/ ./
+# Piper's Czech espeak-ng dictionary gets the built-in pronunciations (loanwords, hard ti/di/ni, vowel-less
+# words) compiled in, so training and synthesis read them right; the untouched one stays as cs_dict.orig.
+RUN python3 -c "from trainer import espeak_dict; print('espeak dictionary:', espeak_dict.install())"
 COPY scripts/ ./scripts/
 COPY VERSION ./VERSION
 COPY --from=frontend /app/dist ./static

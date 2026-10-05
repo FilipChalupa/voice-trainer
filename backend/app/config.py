@@ -325,6 +325,20 @@ def pronounce(text: str, lexicon: dict[str, str] | None, language: str) -> str:
     return respell(spell_out(apply_lexicon(text, lexicon), language), language, frozenset(w.lower() for w in lexicon) | frozenset(v.lower() for v in lexicon.values()))
 
 
+def phoneme_text(text: str, lexicon: dict[str, str] | None, language: str) -> str:
+    """The text to hand to espeak for training and synthesis. Where Piper reads with the dictionary that has
+    the built-in pronunciations compiled in (the app image), loanwords are left to it and only the lexicon and
+    the numbers are rewritten; anywhere else the text is respelled in full, with the same result."""
+    from trainer import espeak_dict
+    from trainer.loanwords import mark_syllabic
+    from trainer.spellout import spell_out
+
+    if language.split("-")[0] == "cs" and espeak_dict.installed():
+        lexicon = lexicon or {}
+        return mark_syllabic(spell_out(apply_lexicon(text, lexicon), language), frozenset(w.lower() for w in lexicon))
+    return pronounce(text, lexicon, language)
+
+
 def apply_lexicon(text: str, lexicon: dict[str, str]) -> str:
     """Replaces whole words (case-insensitive) by their respelling, longest entries first."""
     if not lexicon:

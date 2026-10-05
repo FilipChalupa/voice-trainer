@@ -121,6 +121,10 @@ export type IntelligibilityState = {
   } | null;
 };
 
+export type DeploySettings = { host: string; user: string; port: number; directory: string; restart: string };
+/** `setup` is what to run once on the server so the app's key may deploy there (and nothing else). */
+export type DeployInfo = { settings: DeploySettings; configured: boolean; public_key: string; setup: string; receiver: string };
+
 export type StorageJob = { job_id: string; checkpoints: number; exports: number; cache: number; previews: number; total: number };
 export type StorageInfo = {
   total: number;
@@ -368,6 +372,10 @@ export const api = {
     const res = await check(await fetch("/api/synthesize", json("POST", body)));
     return res.blob();
   },
+  deploy: () => request<DeployInfo>("/api/deploy"),
+  saveDeploy: (settings: DeploySettings) => request<DeployInfo>("/api/deploy", json("PUT", settings)),
+  testDeploy: () => request<{ ok: boolean; output: string }>("/api/deploy/test", { method: "POST" }),
+  deployJob: (jobId: string, file: string) => request<{ ok: boolean; output: string; files: string[] }>(`/api/jobs/${jobId}/deploy`, json("POST", { file })),
   processingAnalysis: (processing: Processing) => request<ProcessingAnalysis>("/api/processing/analysis", json("POST", { processing })),
   processingPreview: async (recordingId: string, processing: Processing) => {
     const res = await check(await fetch("/api/processing/preview", json("POST", { recording_id: recordingId, processing })));

@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from .config import Voice, load_settings, now, pronounce
+from .config import Voice, load_settings, now, phoneme_text
 from .runs import SAFE, find_job_dir, list_exports, read_json
 from .recordings import list_recordings
 
@@ -91,7 +91,7 @@ class Checker:
                 self.state["progress"] = {"current": 0, "total": len(items)}
             for i, r in enumerate(items):
                 wav_path = check_dir / f"{r['id']}.wav"
-                wav_path.write_bytes(synthesize(model_path, pronounce(r["text"], lexicon, language), 1.0, 0.667, 0.8))
+                wav_path.write_bytes(synthesize(model_path, phoneme_text(r["text"], lexicon, language), 1.0, 0.667, 0.8))
                 synth, sr_s = sf.read(str(wav_path), dtype="float32", always_2d=True)
                 ref, sr_r = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
                 if sr_s != sr_r:

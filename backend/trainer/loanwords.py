@@ -86,6 +86,11 @@ _ABBREVIATIONS = {"cs": [(re.compile(r"(?<![\w-])" + re.escape(a) + r"(?![\w-])"
 _NO_VOWEL = re.compile(r"(?<![\w-])([bcčdďfghjkmnňpsštťvzž]*l)([bcčdďfghjklmnňpsštťvzž]+)(?![\w-])", re.IGNORECASE)
 
 
+def mark_syllabic(text: str, skip: set[str] | frozenset[str] = frozenset()) -> str:
+    """Puts the syllabic mark into vowel-less words ("vlk" -> "vl̩k"), whichever dictionary espeak reads with."""
+    return _NO_VOWEL.sub(lambda m: m.group(0) if m.group(0).isupper() or m.group(0).lower() in skip else f"{m.group(1)}\u0329{m.group(2)}", text)
+
+
 def respell(text: str, language: str = "cs", skip: set[str] | frozenset[str] = frozenset()) -> str:
     """Rewrites the listed words the way they are said. `skip` holds lower-case words to leave alone (the ones
     the voice's own lexicon handles). Languages without a list come back unchanged."""
@@ -103,7 +108,7 @@ def respell(text: str, language: str = "cs", skip: set[str] | frozenset[str] = f
     for pattern, spoken in _PATTERNS.get(language, []):
         text = pattern.sub(lambda m, s=spoken: swap(m, s), text)
     if language == "cs":
-        text = _NO_VOWEL.sub(lambda m: m.group(0) if m.group(0).isupper() or m.group(0).lower() in skip else f"{m.group(1)}\u0329{m.group(2)}", text)
+        text = mark_syllabic(text, skip)
     return text
 
 

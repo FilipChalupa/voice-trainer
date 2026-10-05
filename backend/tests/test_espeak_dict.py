@@ -16,6 +16,8 @@ def tools(tmp_path_factory):
     root = tmp_path_factory.mktemp("espeak")
     for name in ("original", "custom"):
         shutil.copytree(data, root / name / "espeak-ng-data")
+        if (data / espeak_dict.ORIGINAL).exists():  # the image has the built-in list compiled in already
+            shutil.copyfile(data / espeak_dict.ORIGINAL, root / name / "espeak-ng-data" / "cs_dict")
     espeak_dict.build(root / "custom" / "espeak-ng-data" / "cs_dict", {"Turris": "turis", "Wi-Fi": "vaj faj"})
 
     def ipa(which: str, text: str) -> str:
@@ -46,3 +48,20 @@ def test_lexicon_is_compiled_in_and_native_words_stay(tools):
 
 def test_cache_key_follows_the_lexicon():
     assert espeak_dict.cache_key({}) == espeak_dict.cache_key(None) != espeak_dict.cache_key({"a": "b"})
+
+
+def test_installed_dictionary_is_detected_by_its_marker(tmp_path, monkeypatch):
+    import piper
+
+    fake = tmp_path / "piper"
+    (fake / "espeak-ng-data").mkdir(parents=True)
+    monkeypatch.setattr(piper, "__file__", str(fake / "__init__.py"))
+    espeak_dict.installed.cache_clear()
+    assert espeak_dict.installed() is False
+    (fake / "espeak-ng-data" / espeak_dict.MARKER).write_text(espeak_dict.cache_key())
+    espeak_dict.installed.cache_clear()
+    assert espeak_dict.installed() is True
+    (fake / "espeak-ng-data" / espeak_dict.MARKER).write_text("an older list")
+    espeak_dict.installed.cache_clear()
+    assert espeak_dict.installed() is False
+    espeak_dict.installed.cache_clear()

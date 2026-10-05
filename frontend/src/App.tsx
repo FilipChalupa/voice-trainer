@@ -198,7 +198,7 @@ function Main() {
           {tab === "test" && voice && payload && (
             <>
               <TestCard jobs={jobs} voice={voice} baseVoiceName={payload.languages.find((l) => l.id === voice.language)?.base.name ?? null} onVoices={onVoices} onError={showError} onGo={selectTab} />
-              <DeployCard jobs={jobs} />
+              <DeployCard jobs={jobs} onError={showError} />
             </>
           )}
           <Typography variant="caption" color="text.secondary" textAlign="center">

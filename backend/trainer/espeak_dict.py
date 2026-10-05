@@ -19,6 +19,7 @@ every entry come from espeak itself, read from the respelling this app already u
 """
 from __future__ import annotations
 
+import functools
 import re
 import shutil
 import subprocess
@@ -35,6 +36,12 @@ _SOFT = {"t": "ti", "d": "di", "n": "ni"}
 # not apply after a preposition, and then its words are read one by one. (word, respelling, takes endings)
 _PHRASE_WORDS = [("home", "houm", False), ("assistant", "asistent", True), ("fair", "fér", False), ("play", "plej", False), ("happy", "hepy", False),
                  ("faux", "fó", False), ("déjà", "deža", False), ("york", "jork", True), ("know", "nou", False), ("how", "hau", False)]
+
+
+# Inside the app image the dictionary with the built-in pronunciations replaces Piper's own (see `install`);
+# the untouched one stays next to it, and a marker says which list the installed one was compiled from.
+ORIGINAL = "cs_dict.orig"
+MARKER = "cs_dict.voice-trainer"
 
 
 class DictionaryError(RuntimeError):
@@ -177,6 +184,9 @@ def build(target: Path, lexicon: dict[str, str] | None = None) -> Path:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         shutil.copytree(data, work / "espeak-ng-data")
+        if (data / ORIGINAL).exists():
+            # the respellings are read with the untouched dictionary, whatever is installed
+            shutil.copyfile(data / ORIGINAL, work / "espeak-ng-data" / "cs_dict")
         shutil.copytree(dictsource, work / "dictsource")
         listing, rules = build_sources(binary, dictsource, work, lexicon)
         (work / "dictsource" / "cs_extra").write_text(listing, encoding="utf-8")
@@ -189,3 +199,27 @@ def build(target: Path, lexicon: dict[str, str] | None = None) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(compiled, target)
     return target
+
+
+def install() -> Path:
+    """Makes the dictionary with the built-in pronunciations the one Piper uses in this environment: training,
+    synthesis and every other phonemization then read loanwords right without any respelling of the text.
+    Run once when the image is built."""
+    _, _, data = find_tools()
+    if not (data / ORIGINAL).exists():
+        shutil.copyfile(data / "cs_dict", data / ORIGINAL)
+    build(data / "cs_dict")
+    (data / MARKER).write_text(cache_key(), encoding="utf-8")
+    installed.cache_clear()
+    return data / "cs_dict"
+
+
+@functools.lru_cache(maxsize=1)
+def installed() -> bool:
+    """True when Piper here reads with the dictionary compiled from the current built-in list."""
+    try:
+        import piper
+
+        return (Path(piper.__file__).parent / "espeak-ng-data" / MARKER).read_text(encoding="utf-8").strip() == cache_key()
+    except Exception:  # noqa: BLE001  (no Piper, no marker)
+        return False

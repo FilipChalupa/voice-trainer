@@ -78,7 +78,10 @@ the header shows a running training from every tab. A glossary behind the questi
    no dictionary, so a button writes any text the way it is said, to paste into Home Assistant; words Whisper kept
    hearing differently while checking the takes are suggested). For Czech voices the same knowledge is also
    compiled into espeak-ng's own dictionary (`cs_dict`, in the ZIP and on the deployment card): mounted into the
-   Piper container it makes Home Assistant read loanwords right for any text. Then download
+   Piper container it makes Home Assistant read loanwords right for any text; inside the app image that dictionary
+   is the one Piper trains and speaks with. A **deploy to the server** button sends the voice and the dictionary
+   over SSH with the app's own key, which the server allows to run one receiver script and nothing else.
+   Or download
    `<lang>-<name>-medium.onnx` + `.onnx.json` for Piper.
 
 | Recording studio | Training |

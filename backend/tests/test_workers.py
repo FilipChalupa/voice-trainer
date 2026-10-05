@@ -235,6 +235,9 @@ def test_intelligibility_test_scores_the_voice_against_the_base_voice(monkeypatc
     (job_dir / "job.json").write_text(json.dumps({"job_id": job_dir.name, "voice_id": voice.id, "slug": "w", "max_epochs": 10, "training": {}}))
     (job_dir / "result.json").write_text(json.dumps({"status": "done", "epoch": 10}))
 
+    from trainer import espeak_dict
+
+    monkeypatch.setattr(espeak_dict, "installed", lambda: False)  # the text itself carries the respelling here
     spoken = []
     monkeypatch.setattr("app.synth.synthesize", lambda path, text, *scales: spoken.append(text) or wav_bytes(seconds=1.0))
     monkeypatch.setattr("app.base.ensure_base_voice", lambda language: tmp_path / "base.onnx")
@@ -258,12 +261,13 @@ def test_intelligibility_test_scores_the_voice_against_the_base_voice(monkeypatc
     worst = result["items"][0]
     assert worst["text"] == "Vlk zmrzl, zhltl hrst zrn." and worst["similarity"] < 0.9 and "zrn" in worst["missed"]
     assert all(i["similarity"] == 1.0 for i in result["items"][1:])
+    assert worst["readings"] == [worst["similarity"]] * intelligibility.READINGS  # every sentence is read twice
     assert 90 < result["score"] < 100 and 95 < result["word_accuracy"] < 100
     # the base voice read the same sentences once and is the yardstick
     assert result["baseline"] == {"score": result["score"], "word_accuracy": result["word_accuracy"], "garbled": 1}
     # the voice was given the spoken form of the text
     assert "Venku je 23 celé 5 stupně Celsia a vlhkost 45 procent." in spoken and "Martyn má typ na dobrý festyval." in spoken
-    assert len(spoken) == 2 * len(sentences)
+    assert len(spoken) == 2 * intelligibility.READINGS * len(sentences)
     assert client.get(f"/api/jobs/{job_dir.name}/intelligibility/audio/{worst['index']}").status_code == 200
     assert next(j for j in client.get("/api/jobs").json()["items"] if j["job_id"] == job_dir.name)["intelligibility"] == result["score"]
 
@@ -271,6 +275,6 @@ def test_intelligibility_test_scores_the_voice_against_the_base_voice(monkeypatc
     spoken.clear()
     client.post(f"/api/jobs/{job_dir.name}/intelligibility")
     assert wait_for(lambda: client.get(f"/api/jobs/{job_dir.name}/intelligibility").json())["status"] == "done"
-    assert len(spoken) == len(sentences)
+    assert len(spoken) == intelligibility.READINGS * len(sentences)
     verify.verifier.stop()
     client.delete(f"/api/jobs/{job_dir.name}")

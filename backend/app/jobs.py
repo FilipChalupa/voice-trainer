@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import base
 from .audio import processing_active
-from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, pronounce, slugify
+from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, phoneme_text, slugify
 from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
 from .runs import FINISHED, SAFE, calibration, find_job_dir, list_exports, list_jobs, list_previews, prune_jobs, read_json
@@ -232,7 +232,7 @@ class JobManager:
             "job_dir": str(job_dir),
             "base_checkpoint": str(base.base_path(language)),
             "from_job": from_job or None,
-            "test_sentences": [pronounce(t, lexicon, language) for t in LANGUAGES[language]["test_sentences"]],
+            "test_sentences": [phoneme_text(t, lexicon, language) for t in LANGUAGES[language]["test_sentences"]],
             "created_at": now(),
         }
         (job_dir / "job.json").write_text(json.dumps(job, indent=2, ensure_ascii=False))
@@ -525,7 +525,7 @@ manager = JobManager()
 def training_lines(items: list[dict[str, Any]], lexicon: dict[str, str], language: str) -> list[str]:
     """Piper's trainer reads "file|text"; "|" inside a transcript would break the CSV. Words that are not said
     as written (the voice's lexicon, loanwords) are respelled, so the phonemes match what was actually spoken."""
-    return [f"{r['id']}.wav|{pronounce(r['text'], lexicon, language).replace('|', ' ')}" for r in items]
+    return [f"{r['id']}.wav|{phoneme_text(r['text'], lexicon, language).replace('|', ' ')}" for r in items]
 
 
 # ----- routes ---------------------------------------------------------------

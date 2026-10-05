@@ -16,14 +16,15 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from .config import BASE_DIR, LANGUAGES, Voice, load_settings, now, pronounce
+from .config import BASE_DIR, LANGUAGES, Voice, load_settings, now, phoneme_text
 from .runs import SAFE, find_job_dir, list_exports, read_json
 
 router = APIRouter(prefix="/api", tags=["intelligibility"])
 
 UNDERSTOOD = 0.9  # a sentence below this similarity counts as garbled
 TIMEOUT_SECONDS = 600
-BASELINE_VERSION = 2  # raised whenever the comparison changes, so a stored yardstick is measured again
+READINGS = 2  # times each sentence is read
+BASELINE_VERSION = 3  # raised whenever the comparison changes, so a stored yardstick is measured again
 
 # plain sentences, questions, loanwords, numbers and units, hard "ti di ni", consonant clusters, rare sounds, names
 SENTENCES: dict[str, list[str]] = {
@@ -132,35 +133,54 @@ class Tester:
         return self.snapshot(job_id)
 
     def _read(self, model_path: Path, out_dir: Path, sentences: list[str], lexicon: dict[str, str], language: str, offset: int, total: int) -> list[dict[str, Any]]:
-        """One voice reads the sentences, Whisper transcribes them; returns a row per sentence."""
+        """One voice reads every sentence READINGS times, Whisper transcribes them; returns a row per sentence.
+        The voice says a sentence a little differently each time, so one reading alone moves the score by a
+        point or two; the row holds the average and shows the worse reading."""
         from .synth import synthesize
         from .verify import verifier
 
         out_dir.mkdir(parents=True, exist_ok=True)
         whisper_language = LANGUAGES[language]["espeak"].split("-")[0]
-        answers: dict[int, dict[str, Any]] = {}
+        answers: dict[tuple[int, int], dict[str, Any]] = {}
         done = threading.Event()
+        wanted = len(sentences) * READINGS
 
-        def collect(i: int, ev: dict[str, Any]) -> None:
-            answers[i] = ev
+        def collect(key: tuple[int, int], ev: dict[str, Any]) -> None:
+            answers[key] = ev
             with self._lock:
                 self.state["progress"] = {"current": offset + len(answers), "total": total}
-            if len(answers) == len(sentences):
+            if len(answers) == wanted:
                 done.set()
 
         for i, text in enumerate(sentences):
-            path = out_dir / f"{i:02d}.wav"
-            path.write_bytes(synthesize(model_path, pronounce(text, lexicon, language), 1.0, 0.667, 0.8))
-            verifier.request(f"intelligibility-{out_dir.parent.name}-{out_dir.name}-{i}", path, text, whisper_language, lambda ev, i=i: collect(i, ev))
+            for n in range(READINGS):
+                path = out_dir / f"{i:02d}-{n}.wav"
+                path.write_bytes(synthesize(model_path, phoneme_text(text, lexicon, language), 1.0, 0.667, 0.8))
+                verifier.request(f"intelligibility-{out_dir.parent.name}-{out_dir.name}-{i}-{n}", path, text, whisper_language, lambda ev, key=(i, n): collect(key, ev))
         if not done.wait(TIMEOUT_SECONDS):
             raise RuntimeError("Whisper did not answer in time")
         rows = []
         for i, text in enumerate(sentences):
-            ev = answers[i]
-            if ev.get("event") != "result":
-                raise RuntimeError(str(ev.get("message") or "Whisper failed"))
-            heard = str(ev.get("transcript", ""))
-            rows.append({"index": i, "text": text, "heard": heard, "similarity": float(ev.get("similarity") or 0.0), "missed": missed_words(text, heard, whisper_language)})
+            readings = []
+            for n in range(READINGS):
+                ev = answers[(i, n)]
+                if ev.get("event") != "result":
+                    raise RuntimeError(str(ev.get("message") or "Whisper failed"))
+                readings.append({"heard": str(ev.get("transcript", "")), "similarity": float(ev.get("similarity") or 0.0)})
+            worst = min(range(READINGS), key=lambda n: readings[n]["similarity"])
+            # the worse reading is the one to listen to; its file becomes the sentence's audio
+            (out_dir / f"{i:02d}-{worst}.wav").replace(out_dir / f"{i:02d}.wav")
+            for n in range(READINGS):
+                (out_dir / f"{i:02d}-{n}.wav").unlink(missing_ok=True)
+            heard = readings[worst]["heard"]
+            rows.append({
+                "index": i,
+                "text": text,
+                "heard": heard,
+                "similarity": round(sum(r["similarity"] for r in readings) / READINGS, 3),
+                "readings": [r["similarity"] for r in readings],
+                "missed": missed_words(text, heard, whisper_language),
+            })
         return rows
 
     def _run(self, job_dir: Path, job: dict[str, Any], export: dict[str, Any]) -> None:
@@ -175,7 +195,7 @@ class Tester:
             baseline = read_json(baseline_file) or None
             if baseline and (baseline.get("sentences") != sentences or baseline.get("version") != BASELINE_VERSION):
                 baseline = None
-            total = len(sentences) * (1 if baseline else 2)
+            total = len(sentences) * READINGS * (1 if baseline else 2)
             with self._lock:
                 self.state["progress"] = {"current": 0, "total": total}
             out_dir = job_dir / "intelligibility"
@@ -183,7 +203,7 @@ class Tester:
             if baseline is None:
                 # the yardstick; without the base voice at hand the test still gives its own numbers
                 try:
-                    base_rows = self._read(ensure_base_voice(language), baseline_file.parent / "audio", sentences, {}, language, len(sentences), total)
+                    base_rows = self._read(ensure_base_voice(language), baseline_file.parent / "audio", sentences, {}, language, len(sentences) * READINGS, total)
                     baseline = {**summarize(base_rows, whisper_language), "sentences": sentences, "version": BASELINE_VERSION, "created_at": now()}
                     baseline_file.write_text(json.dumps(baseline, ensure_ascii=False, indent=1))
                 except Exception:  # noqa: BLE001

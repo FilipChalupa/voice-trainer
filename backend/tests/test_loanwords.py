@@ -50,8 +50,17 @@ def test_loanword_paragraphs_are_short_sentences_that_change_when_pronounced():
     assert len(tricky) == 3 and all(len(prompts.split_sentences(p["text"])) == 10 for p in tricky)
 
 
-def test_training_transcripts_are_written_the_way_they_were_said():
+def test_training_transcripts_are_written_the_way_they_were_said(monkeypatch):
     from app.jobs import training_lines
+    from trainer import espeak_dict
+
+    # where Piper reads with the dictionary that knows the loanwords, only the lexicon and the numbers are
+    # rewritten in the text...
+    monkeypatch.setattr(espeak_dict, "installed", lambda: True)
+    assert training_lines([{"id": "a", "text": "Turris má e-mail za 2 Kč, vlk."}], {"Turris": "turis"}, "cs") == ["a.wav|turis má e-mail za dvě koruny, vl\u0329k."]
+    assert training_lines([{"id": "c", "text": "The software works."}], {}, "en") == ["c.wav|The software works."]
+    # ...anywhere else the text is respelled in full
+    monkeypatch.setattr(espeak_dict, "installed", lambda: False)
 
     items = [{"id": "a", "text": "Přišel vám nový e-mail."}, {"id": "b", "text": "Turris | běží."}, {"id": "c", "text": "The software works."}]
     assert training_lines(items[:2], {"Turris": "turis"}, "cs") == ["a.wav|Přišel vám nový ímejl.", "b.wav|turis   běží."]

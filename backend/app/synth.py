@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from .base import ensure_base_voice
-from .config import BASE_DIR, LANGUAGES, Voice, load_settings, pronounce
+from .config import BASE_DIR, LANGUAGES, Voice, load_settings, phoneme_text
 from .runs import SAFE, find_job_dir, list_exports, read_json
 
 router = APIRouter(prefix="/api", tags=["synthesis"])
@@ -85,7 +85,7 @@ async def post_synthesize(body: dict[str, Any]):
         job = read_json(job_dir / "job.json")
         lexicon = load_settings(Voice(job.get("voice_id") or "")).get("lexicon") or {}
         language = str(job.get("language") or "")
-    text = pronounce(text, lexicon, language)
+    text = phoneme_text(text, lexicon, language)
 
     def clamp(value: Any, default: float, low: float, high: float) -> float:
         try:

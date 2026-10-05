@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from . import paragraphs, prompts
-from .config import LANGUAGES, load_settings, pronounce
+from .config import LANGUAGES, load_settings, phoneme_text, pronounce
 from .recordings import load_index
 from .voices import require_voice
 
@@ -53,7 +53,7 @@ def count_sounds(texts: list[str], language: str, lexicon: dict[str, str]) -> di
     espeak_voice = LANGUAGES[language]["espeak"]
     counts = {label: 0 for label, _, _ in SOUNDS.get(language, [])}
     for text in texts:
-        ph = phonemes(pronounce(text, lexicon, language), espeak_voice)
+        ph = phonemes(phoneme_text(text, lexicon, language), espeak_voice)
         for label, strings, inside in SOUNDS.get(language, []):
             counts[label] += sum(ph.count(s) for s in strings) - sum(ph.count(s) for s in inside)
     return counts
