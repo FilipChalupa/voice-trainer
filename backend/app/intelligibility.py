@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api", tags=["intelligibility"])
 
 UNDERSTOOD = 0.9  # a sentence below this similarity counts as garbled
 TIMEOUT_SECONDS = 600
+BASELINE_VERSION = 2  # raised whenever the comparison changes, so a stored yardstick is measured again
 
 # plain sentences, questions, loanwords, numbers and units, hard "ti di ni", consonant clusters, rare sounds, names
 SENTENCES: dict[str, list[str]] = {
@@ -172,7 +173,7 @@ class Tester:
             sentences = SENTENCES.get(language) or SENTENCES["en"]
             baseline_file = BASE_DIR / "intelligibility" / language / "result.json"
             baseline = read_json(baseline_file) or None
-            if baseline and baseline.get("sentences") != sentences:
+            if baseline and (baseline.get("sentences") != sentences or baseline.get("version") != BASELINE_VERSION):
                 baseline = None
             total = len(sentences) * (1 if baseline else 2)
             with self._lock:
@@ -183,7 +184,7 @@ class Tester:
                 # the yardstick; without the base voice at hand the test still gives its own numbers
                 try:
                     base_rows = self._read(ensure_base_voice(language), baseline_file.parent / "audio", sentences, {}, language, len(sentences), total)
-                    baseline = {**summarize(base_rows, whisper_language), "sentences": sentences, "created_at": now()}
+                    baseline = {**summarize(base_rows, whisper_language), "sentences": sentences, "version": BASELINE_VERSION, "created_at": now()}
                     baseline_file.write_text(json.dumps(baseline, ensure_ascii=False, indent=1))
                 except Exception:  # noqa: BLE001
                     baseline = None

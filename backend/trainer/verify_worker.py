@@ -50,6 +50,7 @@ def _spell_numbers(text: str, language: str) -> str:
 def normalize(text: str, language: str = "cs") -> list[str]:
     # loanwords in their spoken spelling on both sides: "jazz" in the text and "džez" from Whisper are the same word
     text = unicodedata.normalize("NFC", respell(_spell_numbers(spell_out(text, language), language), language)).lower()
+    text = text.replace("\u0329", "")  # the syllabic mark of "vlk" is a hint for espeak, not a part of the word
     text = _PUNCT.sub(" ", text)
     return text.split()
 

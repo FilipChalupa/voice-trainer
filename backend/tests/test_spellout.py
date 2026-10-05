@@ -48,3 +48,10 @@ def test_everything_goes_into_the_training_transcript_and_the_whisper_check():
 
 def test_a_date_does_not_end_the_sentence():
     assert prompts.split_sentences("Dne 1. 5. je státní svátek. Platnost končí 31. 12. 2026. Potom nic.") == ["Dne 1. 5. je státní svátek.", "Platnost končí 31. 12. 2026.", "Potom nic."]
+
+
+def test_the_syllabic_mark_does_not_split_a_word_in_the_comparison():
+    from trainer.verify_worker import normalize
+
+    assert normalize("Vlk zmrzl, zhltl hrst zrn.") == ["vlk", "zmrzl", "zhltl", "hrst", "zrn"]
+    assert similarity("Vlk zvlhl a zmlkl.", "vlk zvlhl a zmlkl") == 1.0
