@@ -109,7 +109,7 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
               {rec.source && <Chip size="small" variant="outlined" color="info" label={t(`rec.source.${rec.source}` as TKey)} />}
               {rec.quality.issues.map((issue) => (
                 <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
-                  <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue)}`} />
+                  <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue, t)}`} />
                 </Tooltip>
               ))}
             </Stack>

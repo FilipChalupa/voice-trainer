@@ -77,7 +77,7 @@ export type Recording = {
   spoken?: string;
   verify: { status: "pending" | "ok" | "mismatch" | "error"; transcript?: string; similarity?: number } | null;
   source: "import" | "transcribed" | null;
-  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; tone_db?: number | null; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; tricky_words?: string[]; issues: QualityIssue[] };
+  quality: { peak?: number; rms_db?: number; speech_db?: number | null; noise_db?: number | null; tone_db?: number | null; level_delta_db?: number; tone_delta_db?: number; speech_seconds?: number; chars_per_second?: number | null; unknown_words?: string[]; tricky_words?: string[]; issues: QualityIssue[] };
 };
 
 export type TranscribeState = {

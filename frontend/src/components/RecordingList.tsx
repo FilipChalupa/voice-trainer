@@ -32,10 +32,15 @@ type Props = {
   onEdit: (rec: Recording, text: string) => Promise<void>;
 };
 
-/** The words a warning is about, for its chip. */
-export function issueWords(rec: Recording, issue: string): string {
+/** What a warning is about, for its chip: the words in question, or how far off the take is. */
+export function issueWords(rec: Recording, issue: string, t: (key: TKey, params?: Record<string, string | number>) => string): string {
   const words = issue === "spelling" ? rec.quality.unknown_words : issue === "tricky_word" ? rec.quality.tricky_words : undefined;
-  return words?.length ? `: ${words.join(", ")}` : "";
+  if (words?.length) return `: ${words.join(", ")}`;
+  const level = rec.quality.level_delta_db;
+  if (issue === "level_mismatch" && level != null) return `: ${t(level > 0 ? "rec.louder" : "rec.quieter", { db: Math.abs(level).toFixed(0) })}`;
+  const tone = rec.quality.tone_delta_db;
+  if (issue === "tone_mismatch" && tone != null) return `: ${t(tone > 0 ? "rec.moreBass" : "rec.lessBass", { db: Math.abs(tone).toFixed(0) })}`;
+  return "";
 }
 
 /** Newest-first list of recordings: waveform, transcript (editable), quality warnings, play and delete. */
@@ -136,7 +141,7 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
                 )}
                 {rec.quality.issues.map((issue) => (
                   <Tooltip key={issue} title={t(`rec.issueHint.${issue}` as TKey)}>
-                    <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue)}`} sx={{ height: 18, fontSize: 11 }} />
+                    <Chip size="small" color="warning" variant="outlined" label={`${t(`rec.issue.${issue}` as TKey)}${issueWords(rec, issue, t)}`} sx={{ height: 18, fontSize: 11 }} />
                   </Tooltip>
                 ))}
               </Stack>

@@ -113,6 +113,11 @@ def flag_inconsistent(items: list[dict[str, Any]]) -> None:
     for r in items:
         q = r["quality"]
         issues = list(q["issues"])
+        # the differences against the rest, so the warnings can say "louder by 7 dB" rather than "different"
+        if q.get("speech_db") is not None:
+            q["level_delta_db"] = round(q["speech_db"] - level_median, 1)
+        if tone_median is not None and q.get("tone_db") is not None:
+            q["tone_delta_db"] = round(q["tone_db"] - tone_median, 1)
         if tone_median is not None and q.get("tone_db") is not None and (abs(q["tone_db"] - tone_median) > TONE_TOLERANCE_DB or str(r["created"])[:10] in off_days):
             issues.append("tone_mismatch")
         if q.get("speech_db") is not None and abs(q["speech_db"] - level_median) > LEVEL_TOLERANCE_DB:
