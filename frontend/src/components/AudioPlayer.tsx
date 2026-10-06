@@ -3,6 +3,7 @@ import { Box, IconButton, Stack, Typography, useTheme } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import { loadPeaks, onExclusiveChange, playExclusive, formatTime } from "../lib/audio";
+import { Scrub } from "./Scrub";
 
 type Props = {
   src: string;
@@ -85,14 +86,15 @@ export function AudioPlayer({ src, peaks: given, label, secondary, autoPlay, den
     else void playExclusive(audio);
   };
 
-  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    if (duration) {
-      audio.currentTime = ratio * duration;
+  const seek = (ratio: number) => {
+    const jump = () => {
+      if (!audio.duration || !isFinite(audio.duration)) return;
+      audio.currentTime = ratio * audio.duration;
       setTime(audio.currentTime);
-      if (!playing) void playExclusive(audio);
-    }
+    };
+    if (audio.duration && isFinite(audio.duration)) jump();
+    else audio.addEventListener("loadedmetadata", jump, { once: true });
+    if (!playing) void playExclusive(audio);
   };
 
   const progress = duration ? time / duration : 0;
@@ -121,12 +123,12 @@ export function AudioPlayer({ src, peaks: given, label, secondary, autoPlay, den
         >
           {playing ? <PauseIcon fontSize={dense ? "small" : "medium"} /> : <PlayArrowIcon fontSize={dense ? "small" : "medium"} />}
         </IconButton>
-        <Box onClick={seek} sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "2px", height, cursor: "pointer", opacity: peaks ? 1 : 0.4, transition: "opacity 200ms" }} role="slider" aria-valuenow={Math.round(progress * 100)}>
+        <Scrub duration={duration} onSeek={seek} ariaValueNow={Math.round(progress * 100)} sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "2px", height, opacity: peaks ? 1 : 0.4, transition: "opacity 200ms" }}>
           {shown.map((p, i) => {
             const played = i / shown.length <= progress && (playing || time > 0);
             return <Box key={i} sx={{ flex: 1, height: `${Math.max(8, (p / max) * 100)}%`, bgcolor: bar, borderRadius: 1, opacity: played ? 1 : 0.3, transition: "opacity 80ms" }} />;
           })}
-        </Box>
+        </Scrub>
         <Typography variant="caption" color="text.secondary" sx={{ minWidth: dense ? 34 : 68, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
           {dense ? formatTime(duration) : `${formatTime(time)} / ${formatTime(duration)}`}
         </Typography>

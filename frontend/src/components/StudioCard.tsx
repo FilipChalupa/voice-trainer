@@ -17,6 +17,7 @@ import { discardTakes, flushTakes, uploadKept, waitingTakes, wasKept } from "../
 import { useScreenAwake } from "../lib/wakeLock";
 import { onExclusiveChange, playExclusive } from "../lib/audio";
 import { RecordingList, Waveform } from "./RecordingList";
+import { AudioPlayer } from "./AudioPlayer";
 import { ReviewDialog } from "./ReviewDialog";
 import { MicCheckDialog } from "./MicCheckDialog";
 import { PhoneDialog } from "./PhoneDialog";
@@ -71,6 +72,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   const [level, setLevel] = useState(0);
   const [peak, setPeak] = useState(0);
   const [lastPeaks, setLastPeaks] = useState<number[] | null>(null);
+  const [justSaved, setJustSaved] = useState<Recording | null>(null);
   // per-browser preferences that survive a reload
   const [autoPlay, setAutoPlay] = useState(() => readPref("autoplay") === "1");
   const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
@@ -156,6 +158,15 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     return () => clearInterval(timer);
   }, [prompts?.source, prompts?.preparing?.state, refresh]);
 
+  /** A click on a waveform: moves inside the take that plays, or starts another one from that point. */
+  const seekTo = (rec: Recording, ratio: number) => {
+    const audio = audioRef.current;
+    if (playing?.id === rec.id && audio && audio.duration) {
+      audio.currentTime = ratio * audio.duration;
+      setPlaying({ id: rec.id, progress: ratio });
+    } else void playOne(rec, ratio);
+  };
+
   const stopPlayback = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.onended = null;
@@ -170,12 +181,13 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
   useEffect(() => onExclusiveChange((other) => other !== audioRef.current && audioRef.current && stopPlayback()), [stopPlayback]);
 
   const playOne = useCallback(
-    (rec: Recording) =>
+    (rec: Recording, from = 0) =>
       new Promise<void>((resolve) => {
         stopPlayback();
         const audio = new Audio(rec.url);
         audioRef.current = audio;
-        setPlaying({ id: rec.id, progress: 0 });
+        setPlaying({ id: rec.id, progress: from });
+        if (from > 0) audio.onloadedmetadata = () => (audio.currentTime = from * audio.duration);
         audio.ontimeupdate = () => setPlaying({ id: rec.id, progress: audio.duration ? audio.currentTime / audio.duration : 0 });
         audio.onended = () => {
           setPlaying(null);
@@ -199,6 +211,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
     busyRef.current = true;
     stopPlayback();
     setLastPeaks(null);
+    setJustSaved(null);
     try {
       setPhase("prepare");
       await recorderRef.current.init(deviceId || undefined, agc);
@@ -222,6 +235,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
       setLastPeaks(waveformPeaks(samples));
       setPhase("uploading");
       const saved = await uploadKept(voice.id, wav, text.trim(), current?.id ?? null);
+      setJustSaved(saved);
       // Whisper checks the take against its text in the background (refused while training runs: then no check)
       api
         .verifyRecording(saved.id)
@@ -494,7 +508,11 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
               <Box sx={{ mb: 1 }}>
                 <LevelMeter level={level} peak={peak} />
               </Box>
-              {lastPeaks && <Waveform peaks={lastPeaks} color={theme.palette.primary.main} height={36} />}
+              {justSaved ? (
+                <AudioPlayer src={justSaved.url} peaks={justSaved.peaks} dense label={t("studio.lastTake")} />
+              ) : (
+                lastPeaks && <Waveform peaks={lastPeaks} color={theme.palette.primary.main} height={36} />
+              )}
             </Box>
           </Stack>
 
@@ -558,6 +576,7 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
             playingId={playing?.id ?? null}
             playingProgress={playing?.progress}
             onTogglePlay={(rec) => (playing?.id === rec.id ? stopPlayback() : playOne(rec))}
+            onSeek={seekTo}
             onDelete={remove}
             onRedo={(rec) => {
               if (playing?.id === rec.id) stopPlayback();

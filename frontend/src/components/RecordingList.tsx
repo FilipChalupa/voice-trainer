@@ -12,6 +12,7 @@ import FlagIcon from "@mui/icons-material/Flag";
 import OutlinedFlagIcon from "@mui/icons-material/OutlinedFlag";
 import type { Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
+import { Scrub } from "./Scrub";
 
 type Filter = "all" | "warnings" | "transcribed" | "unreviewed";
 const PAGE = 50;
@@ -22,6 +23,8 @@ type Props = {
   playingId: string | null;
   playingProgress?: number;
   onTogglePlay: (rec: Recording) => void;
+  /** play from this point of the take (0..1), like any player's progress bar */
+  onSeek: (rec: Recording, ratio: number) => void;
   onDelete: (rec: Recording) => void;
   onRedo: (rec: Recording) => void;
   /** toggles the "record again" mark */
@@ -36,7 +39,7 @@ export function issueWords(rec: Recording, issue: string): string {
 }
 
 /** Newest-first list of recordings: waveform, transcript (editable), quality warnings, play and delete. */
-export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onDelete, onRedo, onMark, onEdit }: Props) {
+export function RecordingList({ items, disabled, playingId, playingProgress, onTogglePlay, onSeek, onDelete, onRedo, onMark, onEdit }: Props) {
   const { t } = useI18n();
   const theme = useTheme();
   const [editing, setEditing] = useState<string | null>(null);
@@ -97,14 +100,25 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
             <IconButton size="small" onClick={() => onTogglePlay(rec)} color={isPlaying ? "primary" : "default"}>
               {isPlaying ? <StopIcon /> : <PlayArrowIcon />}
             </IconButton>
-            <Box sx={{ width: 110, cursor: "pointer", flexShrink: 0, display: { xs: "none", sm: "block" } }} onClick={() => onTogglePlay(rec)}>
+            <Scrub duration={rec.duration} onSeek={(ratio) => onSeek(rec, ratio)} ariaLabel={rec.text} ariaValueNow={isPlaying ? Math.round((playingProgress ?? 0) * 100) : 0} sx={{ width: 110, flexShrink: 0, display: { xs: "none", sm: "block" } }}>
               <Waveform peaks={rec.peaks} color={isPlaying ? theme.palette.primary.main : theme.palette.text.secondary} height={26} progress={isPlaying ? playingProgress : undefined} />
-            </Box>
+            </Scrub>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               {editing === rec.id ? (
                 <TextField size="small" fullWidth multiline value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus />
               ) : (
-                <Typography variant="body2">{rec.text}</Typography>
+                // the sentence itself plays the take: the natural target, above all on a phone
+                <Typography variant="body2" onClick={() => onTogglePlay(rec)} sx={{ cursor: "pointer" }} title={t(isPlaying ? "rec.stopTooltip" : "rec.playTooltip")}>
+                  {rec.text}
+                </Typography>
+              )}
+              {isPlaying && (
+                // on a phone the waveform is hidden: a thin bar shows where the playback is, and seeks too
+                <Scrub duration={rec.duration} onSeek={(ratio) => onSeek(rec, ratio)} ariaLabel={rec.text} ariaValueNow={Math.round((playingProgress ?? 0) * 100)} sx={{ display: { xs: "block", sm: "none" }, py: 0.5 }}>
+                  <Box sx={{ height: 4, borderRadius: 2, bgcolor: "action.hover" }}>
+                    <Box sx={{ height: "100%", width: `${(playingProgress ?? 0) * 100}%`, borderRadius: 2, bgcolor: "primary.main" }} />
+                  </Box>
+                </Scrub>
               )}
               {rec.spoken && editing !== rec.id && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>

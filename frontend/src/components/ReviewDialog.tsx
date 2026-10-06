@@ -9,7 +9,7 @@ import { type Recording } from "../api";
 import { useI18n, type TKey } from "../i18n";
 import { AudioPlayer } from "./AudioPlayer";
 import { issueWords } from "./RecordingList";
-import { stopAll } from "../lib/audio";
+import { stopAll, nudgeExclusive } from "../lib/audio";
 
 type Props = {
   open: boolean;
@@ -82,6 +82,13 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
     } else if (e.ctrlKey && e.key.toLowerCase() === "m") {
       e.preventDefault();
       redo();
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && (e.altKey || !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement))) {
+      // the text field keeps plain arrows for its caret; Alt moves inside the take from anywhere
+      e.preventDefault();
+      nudgeExclusive(e.key === "ArrowLeft" ? -2 : 2);
+    } else if (e.key === "Home" && e.altKey) {
+      e.preventDefault();
+      nudgeExclusive(0, 0);
     }
   };
 

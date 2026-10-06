@@ -9,6 +9,13 @@ export function playExclusive(audio: HTMLAudioElement): Promise<void> {
   return audio.play().catch(() => undefined);
 }
 
+/** Moves the sound that plays (or played last) by `seconds`, or to `to` seconds; keys of the review dialog. */
+export function nudgeExclusive(seconds: number, to?: number): void {
+  if (!current || !current.duration || !isFinite(current.duration)) return;
+  current.currentTime = Math.min(current.duration, Math.max(0, to ?? current.currentTime + seconds));
+  if (current.paused) void current.play().catch(() => undefined);
+}
+
 export function stopAll(): void {
   current?.pause();
   current = null;
