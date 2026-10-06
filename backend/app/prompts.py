@@ -331,7 +331,8 @@ def next_prompts(voice: Voice, recorded_ids: set[str], count: int = 5) -> dict[s
     settings = load_settings(voice)
     prompts, source = all_prompts(voice)
     skipped = set(settings.get("skipped_prompts") or [])
-    remaining = [p for p in prompts if p["id"] not in recorded_ids and p["id"] not in skipped]
+    seen: set[str] = set()
+    remaining = [p for p in prompts if p["id"] not in recorded_ids and p["id"] not in skipped and not (p["id"] in seen or seen.add(p["id"]))]
     items = []
     for p in remaining[:count]:
         # numbers, units, dates and abbreviations in words: the reader sees what the transcript will hold

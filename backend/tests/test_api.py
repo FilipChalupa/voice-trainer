@@ -171,6 +171,14 @@ def test_storage_overview_and_cleanup():
     assert client.post("/api/storage/clear-cache").json()["freed"] == 0
 
 
+def test_the_queue_lists_a_sentence_once_even_when_it_is_queued_again():
+    first = client.get("/api/prompts?count=2").json()["items"][0]
+    rec = client.post("/api/recordings", data={"text": first["text"], "prompt_id": first["id"]}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    client.post(f"/api/recordings/{rec['id']}/redo")  # back to the front as a custom copy of a corpus sentence
+    items = client.get("/api/prompts?count=5").json()["items"]
+    assert items[0]["id"] == first["id"] and [p["id"] for p in items].count(first["id"]) == 1
+
+
 def test_redo_puts_the_sentence_first_even_when_it_is_a_custom_prompt():
     text = "Věta, kterou chci namluvit znovu a lépe."
     client.post("/api/prompts/custom", json={"text": text})  # it is a custom prompt already, like paragraphs are

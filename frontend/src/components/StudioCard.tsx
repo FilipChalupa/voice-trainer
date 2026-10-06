@@ -458,8 +458,8 @@ export function StudioCard({ voice, minutes, disabled, onChanged, onError }: Pro
                 multiline
                 fullWidth
                 variant="standard"
-                disabled={busy || disabled}
-                InputProps={{ disableUnderline: true, sx: { fontSize: { xs: 22, sm: 28 }, lineHeight: 1.3, fontWeight: 500 } }}
+                disabled={disabled}
+                InputProps={{ readOnly: busy, disableUnderline: true, sx: { fontSize: { xs: 22, sm: 28 }, lineHeight: 1.3, fontWeight: 500 } }}
               />
               {current.read_as && text.trim() === current.text && (
                 <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
