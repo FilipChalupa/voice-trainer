@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, Chip, IconButton, Stack, TextField, Tooltip, Typography, useTheme } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
@@ -63,6 +63,16 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
     return true;
   });
   const shown = filtered.slice(0, limit);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const moreRef = useRef<HTMLButtonElement | null>(null);
+  const more = filtered.length > shown.length;
+  useEffect(() => {
+    const button = moreRef.current;
+    if (!more || !button || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setLimit((n) => n + PAGE), { root: scrollRef.current, rootMargin: "120px" });
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [more, shown.length]);
   const index = (rec: Recording) => items.length - newestFirst.indexOf(rec);
 
   const save = async (rec: Recording) => {
@@ -87,7 +97,7 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
           </Stack>
         </Stack>
       )}
-    <Box sx={{ maxHeight: 420, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 2 }}>
+    <Box ref={scrollRef} sx={{ maxHeight: 420, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 2 }}>
       {items.length === 0 && (
         <Typography sx={{ p: 2 }} color="text.secondary">
           {t("rec.empty")}
@@ -202,7 +212,8 @@ export function RecordingList({ items, disabled, playingId, playingProgress, onT
         );
       })}
       {filtered.length > shown.length && (
-        <Button fullWidth size="small" onClick={() => setLimit((n) => n + PAGE)}>
+        // scrolling to the end loads the next page by itself; the button stays for a click (and screen readers)
+        <Button ref={moreRef} fullWidth size="small" onClick={() => setLimit((n) => n + PAGE)}>
           {t("rec.showMore", { n: filtered.length - shown.length })}
         </Button>
       )}
