@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Accordion, AccordionDetails, AccordionSummary, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItem, ListItemText, Stack, TextField, Tooltip, Typography } from "@mui/material";
+import CheckIcon from "@mui/icons-material/Check";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { api, type Book, type Paragraph } from "../api";
@@ -39,12 +40,18 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
     }
   };
 
-  const run = async (fn: () => Promise<{ added: number }>) => {
+  // what is queued, by the name of its text (a built-in paragraph is queued under its title, a chapter under
+  // "book · chapter"); the dialog stays open so several texts can be queued in a row
+  const queued = (source: string) => batches.some((b) => b.source === source && b.remaining > 0);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const run = async (fn: () => Promise<{ added: number }>, name?: string) => {
     setBusy(true);
     try {
       const res = await fn();
       onQueued(res.added);
-      onClose();
+      await loadBatches();
+      setJustAdded(name ?? null);
+      setTimeout(() => setJustAdded((v) => (v === (name ?? null) ? null : v)), 2500);
     } catch (e) {
       onError(errorText(t, e));
     } finally {
@@ -67,7 +74,7 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
   const submitSource = () => {
     const value = source.trim();
     if (!value) return;
-    run(() => api.queueText(/^https?:\/\//.test(value) ? { url: value } : { text: value }));
+    run(() => api.queueText(/^https?:\/\//.test(value) ? { url: value } : { text: value })).then(() => setSource(""));
   };
 
   return (
@@ -113,8 +120,15 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
               key={p.id}
               disableGutters
               secondaryAction={
-                <Button size="small" variant={p.recorded >= p.sentences ? "text" : "outlined"} onClick={() => run(() => api.queueParagraph(p.id))} disabled={busy || p.recorded >= p.sentences}>
-                  {p.recorded >= p.sentences ? t("para.done") : t("para.read")}
+                <Button
+                  size="small"
+                  variant={p.recorded >= p.sentences || queued(p.title) ? "text" : "outlined"}
+                  color={queued(p.title) ? "success" : "primary"}
+                  startIcon={queued(p.title) ? <CheckIcon fontSize="small" /> : undefined}
+                  onClick={() => run(() => api.queueParagraph(p.id), p.title)}
+                  disabled={busy || p.recorded >= p.sentences || queued(p.title)}
+                >
+                  {p.recorded >= p.sentences ? t("para.done") : queued(p.title) ? (justAdded === p.title ? t("para.added") : t("para.inQueue")) : t("para.read")}
                 </Button>
               }
             >
@@ -146,8 +160,15 @@ export function ParagraphsDialog({ open, onClose, onQueued, onError }: Props) {
                           key={ch.page}
                           disableGutters
                           secondaryAction={
-                            <Button size="small" variant="outlined" onClick={() => run(() => api.queueText({ book: book.id, page: ch.page }))} disabled={busy}>
-                              {t("para.read")}
+                            <Button
+                              size="small"
+                              variant={queued(`${book.title} · ${ch.title}`) ? "text" : "outlined"}
+                              color={queued(`${book.title} · ${ch.title}`) ? "success" : "primary"}
+                              startIcon={queued(`${book.title} · ${ch.title}`) ? <CheckIcon fontSize="small" /> : undefined}
+                              onClick={() => run(() => api.queueText({ book: book.id, page: ch.page }), `${book.title} · ${ch.title}`)}
+                              disabled={busy || queued(`${book.title} · ${ch.title}`)}
+                            >
+                              {queued(`${book.title} · ${ch.title}`) ? (justAdded === `${book.title} · ${ch.title}` ? t("para.added") : t("para.inQueue")) : t("para.read")}
                             </Button>
                           }
                         >
