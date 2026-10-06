@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CardHeader, Chip, Collapse, FormControlLabel, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CardHeader, Chip, Collapse, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, LinearProgress, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from "@mui/material";
 import ModelTrainingIcon from "@mui/icons-material/ModelTraining";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
@@ -9,7 +9,8 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import IosShareIcon from "@mui/icons-material/IosShare";
-import { api, type BaseItem, type Calibration, type DatasetReport, type Job, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import { api, type BaseItem, type Calibration, type DatasetReport, type Job, type Schedule, type SystemInfo, type TrainingParams, type TrainingState, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
 import { AudioPlayer } from "./AudioPlayer";
 
@@ -56,6 +57,15 @@ function duration(seconds: number): string {
   return `${(seconds / 3600).toFixed(1)} h`;
 }
 
+/** Tonight at eleven, or tomorrow at eleven when it is already late; in the browser's local time. */
+function defaultPlanTime(): string {
+  const when = new Date();
+  when.setHours(23, 0, 0, 0);
+  if (when.getTime() < Date.now() + 10 * 60000) when.setDate(when.getDate() + 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}T${pad(when.getHours())}:${pad(when.getMinutes())}`;
+}
+
 export function TrainingCard({ state, log, voice, report, jobs, defaults, system, onVoices, onError, onFinished, onGo }: Props) {
   const { t } = useI18n();
   const [showLog, setShowLog] = useState(false);
@@ -65,6 +75,14 @@ export function TrainingCard({ state, log, voice, report, jobs, defaults, system
   const [base, setBase] = useState<BaseItem | null>(null);
   const [calibration, setCalibration] = useState<Calibration | null>(null);
   const [fromJob, setFromJob] = useState(""); // "" = the base voice, otherwise an earlier run to continue from
+  // a run at a set time, e.g. at night when the GPU is free
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planAt, setPlanAt] = useState(() => defaultPlanTime());
+  const loadSchedule = () => api.schedule().then(setSchedule).catch(() => setSchedule(null));
+  useEffect(() => {
+    loadSchedule();
+  }, [voice.id, state.status]);
   const sources = jobs.filter((j) => j.resumable && j.voice_id === voice.id);
   const lastRun = jobs.filter((j) => j.voice_id === voice.id && j.recordings != null && j.status !== "running").sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const [previewEpoch, setPreviewEpoch] = useState<number | null>(null);
@@ -205,11 +223,66 @@ export function TrainingCard({ state, log, voice, report, jobs, defaults, system
             </AccordionDetails>
           </Accordion>
 
+          {schedule?.at && (
+            <Alert
+              severity="info"
+              variant="outlined"
+              action={
+                <Button color="inherit" size="small" onClick={() => call(async () => api.cancelSchedule().then(loadSchedule))}>
+                  {t("train.scheduleCancel")}
+                </Button>
+              }
+            >
+              {t("train.scheduled", { when: new Date(schedule.at).toLocaleString() })}
+              {schedule.from_job ? ` ${t("train.scheduledFrom", { when: new Date(jobs.find((j) => j.job_id === schedule.from_job)?.created_at ?? schedule.from_job).toLocaleString() })}` : ""}
+            </Alert>
+          )}
+          {schedule && !schedule.at && schedule.error && (
+            <Alert severity="warning" variant="outlined" onClose={() => call(async () => api.cancelSchedule().then(loadSchedule))}>
+              {t("train.scheduleFailed", { when: new Date(schedule.failed_at ?? "").toLocaleString(), error: errorText(t, { code: schedule.code ?? null, message: schedule.error }) })}
+            </Alert>
+          )}
+          <Dialog open={planning} onClose={() => setPlanning(false)}>
+            <DialogTitle>{t("train.scheduleTitle")}</DialogTitle>
+            <DialogContent>
+              <Stack spacing={2} sx={{ pt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {t("train.scheduleText")}
+                </Typography>
+                <TextField type="datetime-local" size="small" value={planAt} onChange={(e) => setPlanAt(e.target.value)} inputProps={{ min: new Date(Date.now() + 60000).toISOString().slice(0, 16) }} />
+              </Stack>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setPlanning(false)}>{t("para.close")}</Button>
+              <Button
+                variant="contained"
+                disabled={!planAt}
+                onClick={() =>
+                  call(async () => {
+                    await api.scheduleTraining(new Date(planAt).toISOString(), sources.some((j) => j.job_id === fromJob) ? fromJob : null);
+                    setPlanning(false);
+                    await loadSchedule();
+                  })
+                }
+              >
+                {t("train.schedule")}
+              </Button>
+            </DialogActions>
+          </Dialog>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
             {!running ? (
-              <Button variant="contained" size="large" startIcon={<PlayArrowIcon />} onClick={() => call(() => api.startTraining(sources.some((j) => j.job_id === fromJob) ? fromJob : null))} disabled={busy || !canStart || paramsDirty}>
-                {t("train.start")}
-              </Button>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Button variant="contained" size="large" startIcon={<PlayArrowIcon />} onClick={() => call(() => api.startTraining(sources.some((j) => j.job_id === fromJob) ? fromJob : null))} disabled={busy || !canStart || paramsDirty}>
+                  {t("train.start")}
+                </Button>
+                <Tooltip title={t("train.scheduleHint")}>
+                  <span>
+                    <Button startIcon={<ScheduleIcon />} onClick={() => setPlanning(true)} disabled={busy || !canStart || paramsDirty || !!schedule?.at}>
+                      {t("train.schedule")}
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Stack>
             ) : (
               <Button variant="outlined" color="error" size="large" startIcon={<StopIcon />} onClick={() => call(() => api.cancelTraining())} disabled={busy || state.stage_key === "stopping"}>
                 {t("train.cancel")}

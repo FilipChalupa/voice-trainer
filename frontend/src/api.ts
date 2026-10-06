@@ -26,7 +26,7 @@ export type VoiceSettings = {
 };
 
 /** Tone correction of the copies that go into training. */
-export type Processing = { highpass_hz: number; bass_db: number; bass_hz: number; treble_db: number; treble_hz: number };
+export type Processing = { highpass_hz: number; bass_db: number; bass_hz: number; treble_db: number; treble_hz: number; level: number };
 export type ProcessingAnalysis = {
   available: boolean;
   bands: { band: "sub" | "bass" | "mid" | "presence" | "air"; from_hz: number; to_hz: number; before_db: number; after_db: number }[];
@@ -120,6 +120,9 @@ export type IntelligibilityState = {
     items: IntelligibilityRow[];
   } | null;
 };
+
+/** A run planned for a set time; `at` null with `error` when it could not start. */
+export type Schedule = { voice_id?: string; at?: string | null; from_job?: string | null; error?: string; code?: string; failed_at?: string };
 
 export type DeploySettings = { host: string; user: string; port: number; directory: string; restart: string };
 /** `setup` is what to run once on the server so the app's key may deploy there (and nothing else). */
@@ -237,6 +240,8 @@ export type Job = {
   processing?: Processing | null;
   /** score of the last intelligibility test, 0-100 */
   intelligibility?: number | null;
+  /** a model check of this run exists */
+  checked?: boolean;
   /** set when this run is the one on the server (deployed from here) */
   deployed?: { at: string; host: string; file: string } | null;
   previews: number;
@@ -361,6 +366,15 @@ export const api = {
   base: () => request<{ items: BaseItem[] }>("/api/base"),
   downloadBase: (language: string) => request<unknown>(`/api/base/${language}/download`, { method: "POST" }),
   startTraining: (fromJob: string | null = null) => request<TrainingState>("/api/train", json("POST", fromJob ? { from_job: fromJob } : {})),
+  schedule: () => request<Schedule>("/api/train/schedule"),
+  scheduleTraining: (at: string, fromJob: string | null) => request<Schedule>("/api/train/schedule", json("POST", { at, from_job: fromJob })),
+  cancelSchedule: () => request<Record<string, never>>("/api/train/schedule", { method: "DELETE" }),
+  backupUrl: "/api/backup",
+  restoreBackup: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return request<{ voice_id: string; name: string; files: number }>("/api/backup/restore", { method: "POST", body: form });
+  },
   resumeTraining: (extraEpochs = 0) => request<TrainingState>("/api/train/resume", json("POST", { extra_epochs: extraEpochs })),
   calibration: () => request<Calibration>("/api/train/calibration"),
   cancelTraining: () => request<TrainingState>("/api/train/cancel", { method: "POST" }),

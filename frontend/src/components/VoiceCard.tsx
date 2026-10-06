@@ -7,6 +7,8 @@ import MicIcon from "@mui/icons-material/Mic";
 import StopIcon from "@mui/icons-material/Stop";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import SaveIcon from "@mui/icons-material/Save";
+import DownloadIcon from "@mui/icons-material/Download";
+import UploadIcon from "@mui/icons-material/Upload";
 import { api, type VoicesPayload } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { AudioPlayer } from "./AudioPlayer";
@@ -25,6 +27,8 @@ export function VoiceCard({ payload, disabled, onChange, onError }: Props) {
   const [name, setName] = useState(voice?.name ?? "");
   const [owner, setOwner] = useState(voice?.owner ?? "");
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const restoreRef = useRef<HTMLInputElement | null>(null);
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
@@ -103,12 +107,49 @@ export function VoiceCard({ payload, disabled, onChange, onError }: Props) {
         title={t("voice.title")}
         subheader={t("voice.subtitle")}
         action={
-          <Button startIcon={<AddIcon />} onClick={() => setDialog(true)} disabled={disabled || busy}>
-            {t("voice.new")}
-          </Button>
+          <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            {voice && (
+              <Tooltip title={t("voice.backupHint")}>
+                <Button startIcon={<DownloadIcon />} href={api.backupUrl} download disabled={disabled || busy}>
+                  {t("voice.backup")}
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip title={t("voice.restoreHint")}>
+              <span>
+                <Button startIcon={<UploadIcon />} onClick={() => restoreRef.current?.click()} disabled={disabled || busy}>
+                  {t("voice.restore")}
+                </Button>
+              </span>
+            </Tooltip>
+            <input
+              ref={restoreRef}
+              type="file"
+              accept=".zip,application/zip"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                run(async () => {
+                  const res = await api.restoreBackup(file);
+                  setNotice(t("voice.restored", { name: res.name, files: res.files }));
+                  return api.voices();
+                });
+              }}
+            />
+            <Button startIcon={<AddIcon />} onClick={() => setDialog(true)} disabled={disabled || busy}>
+              {t("voice.new")}
+            </Button>
+          </Stack>
         }
       />
       <CardContent>
+        {notice && (
+          <Alert severity="success" onClose={() => setNotice(null)} sx={{ mb: 2 }}>
+            {notice}
+          </Alert>
+        )}
         {!voice ? (
           <Alert severity="info">{t("voice.empty")}</Alert>
         ) : (

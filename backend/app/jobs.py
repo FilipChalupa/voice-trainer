@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import base
 from .audio import processing_active
-from .config import LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, phoneme_text, slugify
+from .config import DATA_DIR, LANGUAGES, MIN_MINUTES, SAMPLE_RATE, Voice, current_voice, list_voices, load_settings, now, phoneme_text, slugify
 from .events import PROGRESS_BAR, parse_event, pump
 from .recordings import list_recordings, total_minutes
 from .runs import FINISHED, SAFE, calibration, find_job_dir, list_exports, list_jobs, list_previews, prune_jobs, read_json
@@ -31,21 +31,33 @@ router = APIRouter(prefix="/api", tags=["training"])
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 MAX_LOG_LINES = 600
+SCHEDULE_FILE = DATA_DIR / "schedule.json"  # a run planned for a set time (one at a time)
+SCHEDULE_POLL_SECONDS = 20
 RUNNING = ("downloading", "preparing", "training", "exporting")
 STOP_FILE = "STOP"  # created in the job directory to ask the trainer for a clean stop
 WARMSTART_FILE = "warmstart.ckpt"  # an earlier run's checkpoint this run starts from (a hard link, removed afterwards)
 
 
+def typical_level_db(items: list[dict[str, Any]]) -> float | None:
+    """The median speech level of the set: what every take is brought to when levels are evened out."""
+    levels = sorted(r["quality"]["speech_db"] for r in items if r.get("quality", {}).get("speech_db") is not None)
+    return levels[len(levels) // 2] if levels else None
+
+
 def prepare_training_audio(voice: Voice, items: list[dict[str, Any]], target: Path, quiet: bool = True, processing: dict[str, float] | None = None) -> None:
-    """Copies of the takes for training: tone correction first, then the pauses faded down. The takes stay."""
+    """Copies of the takes for training: tone correction, the level evened out, then the pauses faded down.
+    The takes stay."""
     import soundfile as sf
 
-    from .audio import apply_processing, quiet_pauses
+    from .audio import apply_gain, apply_processing, level_gain_db, quiet_pauses
 
     target.mkdir(parents=True, exist_ok=True)
+    target_db = typical_level_db(items) if processing and processing.get("level") else None
     for r in items:
         data, sr = sf.read(str(voice.recordings_dir / f"{r['id']}.wav"), dtype="float32", always_2d=True)
         audio = apply_processing(data[:, 0], sr, processing)
+        if target_db is not None:
+            audio = apply_gain(audio, level_gain_db(r.get("quality", {}).get("speech_db"), target_db))
         sf.write(str(target / f"{r['id']}.wav"), quiet_pauses(audio, sr) if quiet else audio, sr, subtype="PCM_16")
 
 
@@ -61,6 +73,63 @@ class JobManager:
             self.load_voice_state(current_voice())
         except Exception:  # noqa: BLE001  (best effort only)
             pass
+        threading.Thread(target=self._watch_schedule, daemon=True).start()
+
+    # ----- a run at a set time (the GPU is free at night) -----------------------
+    def schedule_state(self) -> dict[str, Any]:
+        try:
+            return json.loads(SCHEDULE_FILE.read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def schedule(self, at: str, from_job: str | None) -> dict[str, Any]:
+        from datetime import datetime, timedelta, timezone
+
+        try:
+            when = datetime.fromisoformat(at)
+        except ValueError as exc:
+            raise HTTPException(400, {"code": "bad_time", "message": "The time could not be read"}) from exc
+        if when.tzinfo is None:
+            when = when.astimezone()  # the browser's local time, as the person sees it
+        now_dt = datetime.now(timezone.utc)
+        if when <= now_dt + timedelta(minutes=1) or when > now_dt + timedelta(days=7):
+            raise HTTPException(400, {"code": "bad_time", "message": "Pick a time between a minute and a week from now"})
+        voice = require_voice()
+        state = {"voice_id": voice.id, "at": when.isoformat(), "from_job": from_job or None, "created_at": now()}
+        SCHEDULE_FILE.write_text(json.dumps(state))
+        return state
+
+    def cancel_schedule(self) -> None:
+        SCHEDULE_FILE.unlink(missing_ok=True)
+
+    def _watch_schedule(self) -> None:
+        from datetime import datetime, timezone
+
+        while True:
+            time.sleep(SCHEDULE_POLL_SECONDS)
+            state = self.schedule_state()
+            if not state.get("at"):
+                continue
+            try:
+                due = datetime.fromisoformat(state["at"]) <= datetime.now(timezone.utc)
+            except ValueError:
+                self.cancel_schedule()
+                continue
+            if not due or self.is_running():
+                continue  # a running job: the scheduled one starts once it is over
+            current = current_voice()
+            try:
+                if current is None or current.id != state.get("voice_id"):
+                    raise HTTPException(409, {"code": "other_voice", "message": "Another voice is selected now"})
+                self.start(state.get("from_job"))
+                self._log(f"scheduled training started ({state['at']})")
+                self.cancel_schedule()
+            except HTTPException as exc:
+                detail = exc.detail if isinstance(exc.detail, dict) else {"message": str(exc.detail)}
+                # not retried: the person sees why it did not start and decides
+                SCHEDULE_FILE.write_text(json.dumps({**state, "at": None, "failed_at": state["at"], "error": detail.get("message"), "code": detail.get("code")}))
+            except Exception as exc:  # noqa: BLE001
+                SCHEDULE_FILE.write_text(json.dumps({**state, "at": None, "failed_at": state["at"], "error": str(exc)}))
 
     @staticmethod
     def _idle_state() -> dict[str, Any]:
@@ -529,6 +598,23 @@ def training_lines(items: list[dict[str, Any]], lexicon: dict[str, str], languag
 
 
 # ----- routes ---------------------------------------------------------------
+@router.get("/train/schedule")
+def get_schedule():
+    return manager.schedule_state()
+
+
+@router.post("/train/schedule")
+async def post_schedule(request: Request):
+    body = await request.json()
+    return manager.schedule(str(body.get("at", "")), str(body.get("from_job") or "") or None)
+
+
+@router.delete("/train/schedule")
+def delete_schedule():
+    manager.cancel_schedule()
+    return {}
+
+
 @router.post("/train")
 async def start_training(request: Request):
     body: dict[str, Any] = {}

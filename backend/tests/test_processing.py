@@ -24,8 +24,8 @@ def level(audio, freq):
 
 def test_settings_are_kept_inside_their_limits():
     assert config.clean_processing(None) == config.DEFAULT_PROCESSING
-    assert config.clean_processing({"highpass_hz": 20, "bass_db": -40, "bass_hz": "x", "treble_db": 99, "treble_hz": 3000}) == {"highpass_hz": 40, "bass_db": -12, "bass_hz": 250, "treble_db": 9, "treble_hz": 3000}
-    assert not processing_active(config.DEFAULT_PROCESSING) and processing_active({"bass_db": -3})
+    assert config.clean_processing({"highpass_hz": 20, "bass_db": -40, "bass_hz": "x", "treble_db": 99, "treble_hz": 3000, "level": True}) == {"highpass_hz": 40, "bass_db": -12, "bass_hz": 250, "treble_db": 9, "treble_hz": 3000, "level": 1}
+    assert not processing_active(config.DEFAULT_PROCESSING) and processing_active({"bass_db": -3}) and processing_active({"level": 1})
 
 
 def test_gain_curve_of_each_control():
@@ -65,7 +65,7 @@ def test_api_saves_the_settings_analyses_and_previews_a_take(tmp_path):
     sf.write(buf, np.concatenate([np.zeros(SR // 3, np.float32), speech, np.zeros(SR // 3, np.float32)]), SR, subtype="PCM_16", format="WAV")
     rec = client.post("/api/recordings", data={"text": "Zkouška úpravy zvuku pro učení."}, files={"file": ("a.wav", buf.getvalue(), "audio/wav")}).json()
     payload = client.put("/api/voice", json={"processing": {"highpass_hz": 80, "bass_db": -4, "treble_db": 50}}).json()
-    assert payload["voice"]["processing"] == {"highpass_hz": 80, "bass_db": -4, "bass_hz": 250, "treble_db": 9, "treble_hz": 4000}
+    assert payload["voice"]["processing"] == {"highpass_hz": 80, "bass_db": -4, "bass_hz": 250, "treble_db": 9, "treble_hz": 4000, "level": 0}
     assert payload["processing_limits"]["bass_db"] == [-12, 6]
 
     res = client.post("/api/processing/analysis", json={"processing": {"bass_db": -6}}).json()
@@ -124,3 +124,33 @@ def test_microphone_test_measures_the_tone_of_a_sentence():
     res = client.post("/api/processing/measure", files={"file": ("a.wav", buf.getvalue(), "audio/wav")}).json()
     assert 8 < res["tone_db"] < 11 and res["bass_corrected"] is False and "dataset_tone_db" in res
     assert client.post("/api/processing/measure", files={"file": ("a.wav", b"nope", "audio/wav")}).status_code == 400
+
+
+def test_levels_are_evened_out_in_the_training_copies(tmp_path):
+    from app.audio import apply_gain, level_gain_db
+    from app.jobs import prepare_training_audio, typical_level_db
+    from app.voices import require_voice
+
+    assert level_gain_db(-30.0, -20.0) == 10.0 and level_gain_db(-5.0, -30.0) == -12.0 and level_gain_db(None, -20.0) == 0.0
+    loud = apply_gain(tone([300], amplitude=0.5), 12.0)
+    assert np.max(np.abs(loud)) <= 0.99 + 1e-6  # a boost never clips
+
+    if client.get("/api/voices").json()["voice"] is None:
+        client.post("/api/voices", json={"name": "Proc", "owner": "Test Person", "language": "cs"})
+    ids = []
+    for amplitude in (0.3, 0.3, 0.1):  # two takes at one level, one 9.5 dB quieter
+        buf = io.BytesIO()
+        sf.write(buf, np.concatenate([np.zeros(SR // 3, np.float32), tone([200, 900], seconds=2.0, amplitude=amplitude), np.zeros(SR // 3, np.float32)]), SR, subtype="PCM_16", format="WAV")
+        ids.append(client.post("/api/recordings", data={"text": f"Hlasitost {amplitude} na zkoušku."}, files={"file": ("a.wav", buf.getvalue(), "audio/wav")}).json()["id"])
+    items = [r for r in client.get("/api/recordings").json()["items"] if r["id"] in ids]
+    quiet_take = next(r for r in items if r["id"] == ids[2])
+    assert quiet_take["quality"]["speech_db"] < typical_level_db(items) - 8
+    prepare_training_audio(require_voice(), items, tmp_path, quiet=False, processing=config.clean_processing({"level": 1}))
+    copies = {rid: sf.read(str(tmp_path / f"{rid}.wav"), dtype="float32")[0] for rid in ids}
+    rms = {rid: 20 * np.log10(np.sqrt(np.mean(copies[rid] ** 2)) + 1e-9) for rid in ids}
+    assert abs(rms[ids[2]] - rms[ids[0]]) < 1.0  # the quiet take came up to the others
+    # the preview applies the same gain
+    quiet_preview, _ = sf.read(io.BytesIO(client.post("/api/processing/preview", json={"recording_id": ids[2], "processing": {"level": 1}}).content), dtype="float32")
+    assert abs(20 * np.log10(np.sqrt(np.mean(quiet_preview ** 2)) + 1e-9) - rms[ids[2]]) < 0.5
+    for rid in ids:
+        client.delete(f"/api/recordings/{rid}")

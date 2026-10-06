@@ -37,7 +37,7 @@ export function JobsCard({ jobs, liveEpoch, disabled, onChanged, onError, onGo }
     <Box sx={{ px: 1, pb: 1 }}>
       {latest && (
         <Box sx={{ p: 1 }}>
-          <NextSteps job={latest} onListen={() => onGo("test")} onTest={() => setTesting(latest)} onCompare={() => onGo("test")} onDeploy={() => onGo("test")} />
+          <NextSteps job={latest} onListen={() => onGo("test")} onTest={() => setTesting(latest)} onCheck={() => setChecking(latest)} onCompare={() => onGo("test")} onDeploy={() => onGo("test")} />
         </Box>
       )}
       {jobs.length === 0 ? (

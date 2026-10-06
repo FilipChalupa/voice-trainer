@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, Slider, Stack, Typography, useTheme } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, FormControlLabel, Slider, Stack, Switch, Typography, useTheme } from "@mui/material";
 import TuneIcon from "@mui/icons-material/Tune";
 import { api, type Processing, type ProcessingAnalysis, type Recording, type VoiceSettings, type VoicesPayload } from "../api";
 import { errorText, useI18n, type TKey } from "../i18n";
@@ -7,14 +7,14 @@ import { AudioPlayer } from "./AudioPlayer";
 
 type Props = { voice: VoiceSettings; payload: VoicesPayload; disabled: boolean; onVoices: (p: VoicesPayload) => void; onError: (message: string) => void };
 
-const CONTROLS: { key: keyof Processing; step: number; unit: "Hz" | "dB" }[] = [
+const CONTROLS: { key: Exclude<keyof Processing, "level">; step: number; unit: "Hz" | "dB" }[] = [
   { key: "highpass_hz", step: 10, unit: "Hz" },
   { key: "bass_db", step: 0.5, unit: "dB" },
   { key: "bass_hz", step: 10, unit: "Hz" },
   { key: "treble_db", step: 0.5, unit: "dB" },
   { key: "treble_hz", step: 250, unit: "Hz" },
 ];
-const same = (a: Processing, b: Processing) => CONTROLS.every((c) => a[c.key] === b[c.key]);
+const same = (a: Processing, b: Processing) => CONTROLS.every((c) => a[c.key] === b[c.key]) && a.level === b.level;
 const signed = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}`;
 
 /** Tone correction of the copies that go into training: sliders, the spectrum before and after, and one take
@@ -119,6 +119,12 @@ export function ProcessingCard({ voice, payload, disabled, onVoices, onError }: 
             ))}
           </Box>
 
+          <Box>
+            <FormControlLabel control={<Switch checked={params.level === 1} onChange={(e) => setParams({ ...params, level: e.target.checked ? 1 : 0 })} disabled={disabled} />} label={t("proc.f.level")} />
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+              {t("proc.h.level")}
+            </Typography>
+          </Box>
           {analysis?.available && (
             <Box>
               <Spectrum curve={analysis.curve} />

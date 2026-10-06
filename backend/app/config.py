@@ -149,8 +149,10 @@ class Voice:
 
 # Tone correction of the copies that go into training (the takes themselves are never changed): a close dynamic
 # microphone makes the voice boomy, and the model learns the tone of its data.
-DEFAULT_PROCESSING: dict[str, float] = {"highpass_hz": 0, "bass_db": 0.0, "bass_hz": 250, "treble_db": 0.0, "treble_hz": 4000}
-PROCESSING_LIMITS: dict[str, tuple[float, float]] = {"highpass_hz": (0, 200), "bass_db": (-12, 6), "bass_hz": (100, 500), "treble_db": (-6, 9), "treble_hz": (2000, 8000)}
+# `level`: 1 = every take is brought to the typical speech level of the set (a sentence said more quietly
+# would otherwise teach the model that some sentences are quiet)
+DEFAULT_PROCESSING: dict[str, float] = {"highpass_hz": 0, "bass_db": 0.0, "bass_hz": 250, "treble_db": 0.0, "treble_hz": 4000, "level": 0}
+PROCESSING_LIMITS: dict[str, tuple[float, float]] = {"highpass_hz": (0, 200), "bass_db": (-12, 6), "bass_hz": (100, 500), "treble_db": (-6, 9), "treble_hz": (2000, 8000), "level": (0, 1)}
 
 
 def clean_processing(update: Any) -> dict[str, float]:
@@ -163,6 +165,7 @@ def clean_processing(update: Any) -> dict[str, float]:
             pass
     if 0 < out["highpass_hz"] < 40:
         out["highpass_hz"] = 40
+    out["level"] = 1 if out["level"] >= 0.5 else 0
     return out
 
 

@@ -247,8 +247,28 @@ def quiet_pauses(audio: np.ndarray, sr: int, min_pause_ms: int = 120, attenuatio
     return (audio * env).astype(np.float32)
 
 
+MAX_LEVEL_GAIN_DB = 12.0
+
+
 def processing_active(p: dict[str, float] | None) -> bool:
-    return bool(p) and (p.get("highpass_hz", 0) > 0 or abs(p.get("bass_db", 0)) >= 0.1 or abs(p.get("treble_db", 0)) >= 0.1)
+    return bool(p) and (p.get("highpass_hz", 0) > 0 or abs(p.get("bass_db", 0)) >= 0.1 or abs(p.get("treble_db", 0)) >= 0.1 or bool(p.get("level")))
+
+
+def level_gain_db(speech_db: float | None, target_db: float | None) -> float:
+    """How much to turn a take up or down so that its speech sits at the set's typical level (within reason)."""
+    if speech_db is None or target_db is None:
+        return 0.0
+    return float(max(-MAX_LEVEL_GAIN_DB, min(MAX_LEVEL_GAIN_DB, target_db - speech_db)))
+
+
+def apply_gain(audio: np.ndarray, gain_db: float) -> np.ndarray:
+    if abs(gain_db) < 0.1:
+        return audio
+    out = audio.astype(np.float32) * np.float32(10 ** (gain_db / 20.0))
+    peak = float(np.max(np.abs(out))) if out.size else 0.0
+    if peak > 0.99:
+        out *= np.float32(0.99 / peak)
+    return out
 
 
 def eq_gain(freqs: np.ndarray, p: dict[str, float]) -> np.ndarray:

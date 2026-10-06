@@ -59,8 +59,9 @@ the header shows a running training from every tab. A glossary behind the questi
 3. **Training** – an existing Piper voice of the same language is fine-tuned on your recordings (the card says how
    many takes were added since the last run). A sound-correction card sets the tone of the copies that go into training
    (high-pass, bass and treble shelves, a suggestion from your takes, the spectrum before and after, one take to
-   compare by ear): a close microphone makes a voice boomy and the model learns exactly that. The takes stay as
-   they are
+   compare by ear, a switch that evens out the loudness of the takes): a close microphone makes a voice boomy and
+   the model learns exactly that. The takes stay as they are. A run can be scheduled for a set time (at night,
+   when the GPU is free)
    (`piper.train`, VITS, PyTorch Lightning). Progress is streamed live: epochs, losses, validation mel loss and an
    estimated MOS. Every N epochs the test sentences are synthesised so you can *hear* the progress. A run can be
    stopped (the current state is saved first), continued after a restart, or extended with more epochs. The
@@ -68,7 +69,8 @@ the header shows a running training from every tab. A glossary behind the questi
    stops by itself when the validation loss has not improved for a number of validations (patience). Afterwards
    the trained voice can read every training sentence back; takes it cannot reproduce (misread, wrong
    transcript, noise) are listed for a listen and flagged in the recording list.
-   An **intelligibility test** has the trained voice read a fixed set of tricky sentences while Whisper writes
+   The whole voice (takes, consent, settings, finished runs) can be downloaded as one ZIP backup and restored
+   as a new voice. An **intelligibility test** has the trained voice read a fixed set of tricky sentences while Whisper writes
    down what it hears: one number to compare runs by (next to the same number for the untouched base voice)
    and the list of sentences and words the voice garbles.
 4. **Test & export** – type text and listen, compare the last epoch with the best checkpoints, with an older run, with a run of

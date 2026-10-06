@@ -9,7 +9,7 @@ import numpy as np
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from .audio import TONE_N_FFT as N_FFT, apply_processing, eq_gain, normalize_wav, speech_spectrum, tone_db
+from .audio import TONE_N_FFT as N_FFT, apply_gain, apply_processing, eq_gain, level_gain_db, normalize_wav, speech_spectrum, tone_db
 from .config import Voice, clean_processing, load_settings
 from .recordings import SAFE_ID, list_recordings, load_index
 from .voices import require_voice
@@ -120,8 +120,16 @@ def post_preview(body: dict[str, Any]) -> Response:
     if not SAFE_ID.match(rid) or not path.exists():
         raise HTTPException(404, {"code": "not_found", "message": "Recording not found"})
     data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    processing = _body_processing(body, voice)
+    audio = apply_processing(data[:, 0], sr, processing)
+    if processing.get("level"):
+        from .jobs import typical_level_db
+
+        items = list_recordings(voice)
+        take = next((r for r in items if r["id"] == rid), None)
+        audio = apply_gain(audio, level_gain_db((take or {}).get("quality", {}).get("speech_db"), typical_level_db(items)))
     buffer = io.BytesIO()
-    sf.write(buffer, apply_processing(data[:, 0], sr, _body_processing(body, voice)), sr, subtype="PCM_16", format="WAV")
+    sf.write(buffer, audio, sr, subtype="PCM_16", format="WAV")
     return Response(buffer.getvalue(), media_type="audio/wav")
 
 

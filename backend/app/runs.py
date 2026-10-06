@@ -93,6 +93,7 @@ def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | N
         "from_job": job.get("from_job"),
         "processing": job.get("processing"),
         "intelligibility": (read_json(job_dir / "intelligibility" / "result.json") or {}).get("score"),
+        "checked": (job_dir / "check" / "result.json").exists(),
         "deployed": _deployed(job["job_id"]),
         "epoch": result.get("epoch"),
         "validation_last": (result.get("validation") or [None])[-1],

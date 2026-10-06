@@ -5,7 +5,7 @@ import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import type { Job } from "../api";
 import { useI18n, type TKey } from "../i18n";
 
-type Step = "listen" | "test" | "compare" | "deploy";
+type Step = "listen" | "test" | "check" | "compare" | "deploy";
 const KEY = "voice-trainer.steps.";
 
 function readDone(jobId: string): Set<Step> {
@@ -18,7 +18,7 @@ function readDone(jobId: string): Set<Step> {
 
 /** What to do with a finished run: listen, test, compare, deploy. The server knows about the test and the
  *  deployment; a listen or a comparison counts as done once the person went there. */
-export function NextSteps({ job, onListen, onTest, onCompare, onDeploy }: { job: Job; onListen: () => void; onTest: () => void; onCompare: () => void; onDeploy: () => void }) {
+export function NextSteps({ job, onListen, onTest, onCheck, onCompare, onDeploy }: { job: Job; onListen: () => void; onTest: () => void; onCheck: () => void; onCompare: () => void; onDeploy: () => void }) {
   const { t } = useI18n();
   const [done, setDone] = useState<Set<Step>>(() => readDone(job.job_id));
   useEffect(() => setDone(readDone(job.job_id)), [job.job_id]);
@@ -34,6 +34,7 @@ export function NextSteps({ job, onListen, onTest, onCompare, onDeploy }: { job:
   const steps: { step: Step; done: boolean; action: () => void }[] = [
     { step: "listen", done: done.has("listen"), action: () => (mark("listen"), onListen()) },
     { step: "test", done: job.intelligibility != null, action: onTest },
+    { step: "check", done: !!job.checked, action: onCheck },
     { step: "compare", done: done.has("compare"), action: () => (mark("compare"), onCompare()) },
     { step: "deploy", done: !!job.deployed, action: onDeploy },
   ];
