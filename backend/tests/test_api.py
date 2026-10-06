@@ -325,7 +325,7 @@ def test_prompts_with_numbers_say_how_they_are_read_and_text_is_respelled_for_ot
     first = client.get("/api/prompts?count=1").json()["items"][0]
     assert first["text"] == "Venku je 23,5 °C a vlhkost 45 %." and first["read_as"] == "Venku je dvacet tři celé pět stupně Celsia a vlhkost čtyřicet pět procent."
     client.post(f"/api/prompts/{first['id']}/skip")
-    assert client.post("/api/pronounce", json={"text": "E-mail o 2 kg softwaru."}).json() == {"text": "Ímejl o 2 kilogramy softvéru."}
+    assert client.post("/api/pronounce", json={"text": "E-mail o 2 kg softwaru."}).json() == {"text": "Ímejl o dva kilogramy softvéru."}
 
 
 def test_sound_coverage_counts_rare_sounds_and_suggests_paragraphs():

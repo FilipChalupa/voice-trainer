@@ -101,10 +101,12 @@ def _ordinal(day: int) -> str:
 
 def _number(n: int, gender: str) -> str:
     """The number as espeak should read it: digits, except where "jeden/dva" must agree with the noun."""
-    if gender == "m" or n % 100 in (11, 12) or n % 10 not in (1, 2):
+    if n % 100 in (11, 12) or n % 10 not in (1, 2):
         return str(n)
     if n < 10:
-        return {("f", 1): "jedna", ("n", 1): "jedno"}.get((gender, n), "dvě")
+        return {("f", 1): "jedna", ("n", 1): "jedno", ("m", 1): "jeden", ("m", 2): "dva"}.get((gender, n), "dvě")
+    if gender == "m":
+        return str(n)
     # 22 hodiny, 21 korun: "20 dvě" is read "dvacet dvě", "20 jedna" "dvacet jedna" (espeak alone says "dvacet jeden")
     return f"{n - n % 10} {'jedna' if n % 10 == 1 else 'dvě'}"
 
@@ -184,6 +186,7 @@ def spell_out(text: str, language: str = "cs") -> str:
 
 
 _DIGITS = re.compile(r"\d+")
+_MINUS = re.compile(r"(?<![\w])[-−](?=\d)")  # "-3 °C" is said "mínus tři"
 
 
 def in_words(text: str, language: str = "cs") -> str:
@@ -195,4 +198,5 @@ def in_words(text: str, language: str = "cs") -> str:
         from num2words import num2words
     except ImportError:  # pragma: no cover
         return text
+    text = _MINUS.sub("mínus ", text)
     return _DIGITS.sub(lambda m: num2words(int(m.group(0)), lang=language) if len(m.group(0)) < 10 else m.group(0), text)

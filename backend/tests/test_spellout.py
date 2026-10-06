@@ -5,10 +5,10 @@ from trainer.verify_worker import similarity
 
 
 def test_units_agree_with_the_number():
-    assert spell_out("Je 1 °C, pak 2 °C, 5 °C a 22 °C.") == "Je 1 stupeň Celsia, pak 2 stupně Celsia, 5 stupňů Celsia a 22 stupně Celsia."
+    assert spell_out("Je 1 °C, pak 2 °C, 5 °C a 22 °C.") == "Je jeden stupeň Celsia, pak dva stupně Celsia, 5 stupňů Celsia a 22 stupně Celsia."
     assert spell_out("Vlhkost 45 %, baterie 82 %.") == "Vlhkost 45 procent, baterie 80 dvě procenta."
     assert spell_out("Stojí 1 250 Kč, sleva 21 Kč a 2 Kč.") == "Stojí 1250 korun, sleva 20 jedna korun a dvě koruny."
-    assert spell_out("Jelo 120 km/h, váží 2 kg, spotřeba 5 kWh.") == "Jelo 120 kilometrů za hodinu, váží 2 kilogramy, spotřeba 5 kilowatthodin."
+    assert spell_out("Jelo 120 km/h, váží 2 kg, spotřeba 5 kWh.") == "Jelo 120 kilometrů za hodinu, váží dva kilogramy, spotřeba 5 kilowatthodin."
     assert spell_out("Za 25 min. denně, nebo za 1 min.") == "Za 25 minut denně, nebo za jedna minuta."
 
 
@@ -64,3 +64,5 @@ def test_numbers_in_words_for_the_reader_and_the_length_check():
     assert in_words("Narodil se 3. května 1985.") == "Narodil se třetího května tisíc devětset osmdesát pět."
     assert in_words("Venku je 23,5 °C a 45 %.") == "Venku je dvacet tři celé pět stupně Celsia a čtyřicet pět procent."
     assert in_words("It is 25 %.", "en") == "It is twenty-five %."
+    assert in_words("V noci bude -3 °C a ráno 1 °C.") == "V noci bude mínus tři stupně Celsia a ráno jeden stupeň Celsia."
+    assert in_words("Teplota 5-7 °C, kód 12-3.") == "Teplota pět až sedm stupňů Celsia, kód dvanáct až tři."
