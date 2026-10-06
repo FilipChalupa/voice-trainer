@@ -82,13 +82,11 @@ export function ReviewDialog({ open, queue, onClose, onApprove, onDelete, onRedo
     } else if (e.ctrlKey && e.key.toLowerCase() === "m") {
       e.preventDefault();
       redo();
-    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && (e.altKey || !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement))) {
-      // the text field keeps plain arrows for its caret; Alt moves inside the take from anywhere
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && (e.ctrlKey || !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement))) {
+      // the text field keeps plain arrows for its caret; Ctrl moves inside the take from anywhere
+      // (Alt+arrows would be the browser's back and forward, or a word jump on a Mac)
       e.preventDefault();
       nudgeExclusive(e.key === "ArrowLeft" ? -2 : 2);
-    } else if (e.key === "Home" && e.altKey) {
-      e.preventDefault();
-      nudgeExclusive(0, 0);
     }
   };
 
