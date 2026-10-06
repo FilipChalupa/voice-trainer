@@ -298,10 +298,11 @@ def test_system_and_voice_delete():
 
 
 def test_take_can_be_marked_for_recording_again_and_tricky_words_are_flagged():
-    rec = client.post("/api/recordings", data={"text": "Na disku Flash je nový software, hm."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
+    rec = client.post("/api/recordings", data={"text": "Na disku Flash je nový software, tj. hm, viz str. 12."}, files={"file": ("a.wav", wav_bytes(), "audio/wav")}).json()
     item = next(r for r in client.get("/api/recordings").json()["items"] if r["id"] == rec["id"])
-    # "software" is on the built-in list, "Flash" is respelled too; only the vowel-less "hm" has no cure yet
-    assert item["spoken"] == "Na disku Fleš je nový softvér, hm."
+    # "software" is on the built-in list, "Flash" is respelled too, "tj." and "str." are read in words;
+    # only the vowel-less "hm" has no cure yet
+    assert item["spoken"] == "Na disku Fleš je nový softvér, to jest hm, viz strana 12."
     assert "tricky_word" in item["quality"]["issues"] and item["quality"]["tricky_words"] == ["hm"]
     assert "redo" not in item["quality"]["issues"] and item["redo"] is False
 

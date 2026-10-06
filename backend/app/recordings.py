@@ -210,9 +210,11 @@ def _tricky_words(text: str, language: str, lexicon: dict[str, str]) -> tuple[st
             _tricky_cache.clear()
         handled = {w.lower() for w in lexicon}
         dictionary = prompts._dictionary(language)
+        # an abbreviation that is read in words ("tj.", "str.", "atd.") is gone from the spoken form
+        expanded = set(_TOKEN.findall(spell_out(text, language)))
         found = []
         for word in _TOKEN.findall(text):
-            if word.isupper() or word.lower() in handled or loanwords.listed(word, language):
+            if word.isupper() or word.lower() in handled or loanwords.listed(word, language) or word not in expanded:
                 continue
             foreign = _FOREIGN.search(word) and not (dictionary is not None and (dictionary.lookup(word) or dictionary.lookup(word.lower())))
             if (foreign or _NO_NUCLEUS.fullmatch(word)) and word not in found:
