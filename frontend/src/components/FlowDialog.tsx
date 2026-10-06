@@ -68,7 +68,10 @@ export function FlowDialog({ open, voiceId, recorder, deviceId, agc, maxSeconds,
 
   const refill = useCallback(async () => {
     const res = await api.prompts(12);
-    const fresh = res.items.filter((p) => !queueRef.current.some((q) => q.id === p.id));
+    // a sentence goes into the queue once, whatever the server sends (a sentence queued again at the front
+    // used to come back twice, as its custom copy and from the corpus)
+    const seen = new Set(queueRef.current.map((q) => q.id));
+    const fresh = res.items.filter((p) => !seen.has(p.id) && Boolean(seen.add(p.id)));
     queueRef.current = [...queueRef.current, ...fresh];
     setQueue([...queueRef.current]);
   }, []);
