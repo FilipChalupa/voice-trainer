@@ -78,6 +78,7 @@ const BASE = process.env.BASE_URL || "http://localhost:8001";
   await page.getByRole("tab", { name: "Recording" }).click();
   const wave = page.getByRole("slider", { name: "Seek test sentence for the waveform." });
   await wave.waitFor({ timeout: 15000 });
+  await wave.scrollIntoViewIfNeeded();
   const box = await wave.boundingBox();
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height / 2);
   await page.waitForTimeout(700);

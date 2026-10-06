@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Box } from "@mui/material";
 import { formatTime } from "../lib/audio";
 
@@ -23,6 +23,13 @@ const ratioOf = (e: React.PointerEvent<HTMLElement>) => {
 export function Scrub({ duration, onSeek, children, sx, ariaLabel, ariaValueNow }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
+  const last = useRef<number | null>(null);
+  const seek = (ratio: number) => {
+    // a plain click lands twice (down and up): the second one at the same point is not another jump
+    if (last.current !== null && Math.abs(ratio - last.current) < 0.005) return;
+    last.current = ratio;
+    onSeek(ratio);
+  };
   return (
     <Box
       role="slider"
@@ -33,15 +40,16 @@ export function Scrub({ duration, onSeek, children, sx, ariaLabel, ariaValueNow 
         if (e.button !== 0) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         setDragging(true);
-        onSeek(ratioOf(e));
+        last.current = null;
+        seek(ratioOf(e));
       }}
       onPointerMove={(e) => {
         const ratio = ratioOf(e);
         setHover(ratio);
-        if (dragging) onSeek(ratio);
+        if (dragging) seek(ratio);
       }}
       onPointerUp={(e) => {
-        if (dragging) onSeek(ratioOf(e));
+        if (dragging) seek(ratioOf(e));
         setDragging(false);
       }}
       onPointerCancel={() => setDragging(false)}
