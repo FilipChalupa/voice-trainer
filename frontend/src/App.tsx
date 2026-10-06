@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Accordion, AccordionDetails, AccordionSummary, Alert, AppBar, Badge, Box, Container, IconButton, MenuItem, Select, Snackbar, Stack, Tab, Tabs, Toolbar, Tooltip, Typography } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import { notificationsAllowed, notificationsSupported, notifyDone, setNotifications } from "./lib/notify";
 import MicNoneIcon from "@mui/icons-material/MicNone";
 import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import { AppThemeProvider } from "./theme";
@@ -52,6 +55,16 @@ function Main() {
   });
 
   const showError = useCallback((message: string) => setError(message), []);
+  // a word when a training ends while the tab is not looked at
+  const [notify, setNotify] = useState(() => notificationsAllowed());
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    const isRunning = ["downloading", "preparing", "training", "exporting"].includes(state.status);
+    if (wasRunning.current && !isRunning && (state.status === "done" || state.status === "failed")) {
+      notifyDone(t(state.status === "done" ? "notify.trainingDone" : "notify.trainingFailed"));
+    }
+    wasRunning.current = isRunning;
+  }, [state.status, t]);
   const selectTab = (next: TabId) => {
     setTab(next);
     history.replaceState(null, "", `#${next}`);
@@ -134,6 +147,13 @@ function Main() {
           )}
           <TrainingChip state={state} onClick={() => selectTab("train")} />
           <SystemChip info={system} />
+          {notificationsSupported() && (
+            <Tooltip title={t(notify ? "notify.on" : "notify.off")}>
+              <IconButton onClick={() => setNotifications(!notify).then(setNotify)} size="small" color={notify ? "primary" : "default"} aria-label={t("notify.toggle")}>
+                {notify ? <NotificationsActiveIcon /> : <NotificationsNoneIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
           <Tooltip title={t("help.title")}>
             <IconButton onClick={() => setHelpOpen(true)} size="small" sx={{ mr: 1 }}>
               <HelpOutlineIcon />
@@ -189,7 +209,7 @@ function Main() {
                     <Typography variant="subtitle2">{t("jobs.accordion", { n: jobs.length })}</Typography>
                   </AccordionSummary>
                   <AccordionDetails sx={{ p: 0 }}>
-                    <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} />
+                    <JobsCard jobs={jobs} liveEpoch={state.epoch} disabled={running} onChanged={loadJobs} onError={showError} onGo={selectTab} />
                   </AccordionDetails>
                 </Accordion>
               )}

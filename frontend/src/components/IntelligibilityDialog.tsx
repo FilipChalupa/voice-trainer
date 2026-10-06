@@ -4,6 +4,7 @@ import GraphicEqIcon from "@mui/icons-material/GraphicEq";
 import { api, type IntelligibilityState, type Job } from "../api";
 import { errorText, useI18n } from "../i18n";
 import { playSequence } from "../lib/audio";
+import { notifyDone } from "../lib/notify";
 
 type Props = { job: Job | null; onClose: () => void; onChanged: () => void; onError: (message: string) => void };
 
@@ -33,7 +34,10 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
   }, [job, running]);
   // the score in the list of runs follows a finished test
   useEffect(() => {
-    if (state?.status === "done") onChanged();
+    if (state?.status === "done") {
+      onChanged();
+      if (state.result) notifyDone(t("notify.testDone", { score: state.result.score.toFixed(1) }));
+    }
   }, [state?.status, state?.result?.created_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const start = async () => {

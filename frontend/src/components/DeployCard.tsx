@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, Card, CardContent, CardHeader, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CardHeader, CircularProgress, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import DownloadIcon from "@mui/icons-material/Download";
-import { type Job } from "../api";
-import { useI18n, type TKey } from "../i18n";
+import { api, type Job } from "../api";
+import { errorText, useI18n, type TKey } from "../i18n";
 import { ServerDeploy } from "./ServerDeploy";
 
 const VARIANTS = new Set(["last", "best_mos", "best_mel"]);
@@ -13,6 +13,7 @@ export function DeployCard({ jobs, onError }: { jobs: Job[]; onError: (message: 
   const { t } = useI18n();
   const runs = useMemo(() => jobs.filter((j) => j.exports.length > 0), [jobs]);
   const [jobId, setJobId] = useState("");
+  const [building, setBuilding] = useState(false);
   const job = runs.find((j) => j.job_id === jobId) ?? runs[0];
   if (!job) return null;
   const variantLabel = (variant: string) => (VARIANTS.has(variant) ? t(`test.variant.${variant}` as TKey) : variant);
@@ -65,8 +66,30 @@ export function DeployCard({ jobs, onError }: { jobs: Job[]; onError: (message: 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 {t("deploy.dictHelp")}
               </Typography>
-              <Button size="small" variant="outlined" href="/api/espeak-dict" download="cs_dict" startIcon={<DownloadIcon />} sx={{ textTransform: "none" }}>
-                cs_dict
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={building ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
+                disabled={building}
+                sx={{ textTransform: "none" }}
+                onClick={async () => {
+                  setBuilding(true);
+                  try {
+                    const blob = await api.espeakDict();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "cs_dict";
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 10000);
+                  } catch (e) {
+                    onError(errorText(t, e));
+                  } finally {
+                    setBuilding(false);
+                  }
+                }}
+              >
+                {building ? t("deploy.dictBuilding") : "cs_dict"}
               </Button>
               <Box component="pre" sx={{ mt: 1, p: 1, bgcolor: "action.hover", borderRadius: 1, fontSize: 12, overflowX: "auto" }}>
                 {"volumes:\n  - ./piper-data/cs_dict:/usr/src/.venv/lib/python3.13/site-packages/piper/espeak-ng-data/cs_dict:ro"}

@@ -237,6 +237,8 @@ export type Job = {
   processing?: Processing | null;
   /** score of the last intelligibility test, 0-100 */
   intelligibility?: number | null;
+  /** set when this run is the one on the server (deployed from here) */
+  deployed?: { at: string; host: string; file: string } | null;
   previews: number;
 };
 
@@ -375,6 +377,10 @@ export const api = {
   deploy: () => request<DeployInfo>("/api/deploy"),
   saveDeploy: (settings: DeploySettings) => request<DeployInfo>("/api/deploy", json("PUT", settings)),
   testDeploy: () => request<{ ok: boolean; output: string }>("/api/deploy/test", { method: "POST" }),
+  espeakDict: async () => {
+    const res = await check(await fetch("/api/espeak-dict"));
+    return res.blob();
+  },
   deployJob: (jobId: string, file: string) => request<{ ok: boolean; output: string; files: string[] }>(`/api/jobs/${jobId}/deploy`, json("POST", { file })),
   processingAnalysis: (processing: Processing) => request<ProcessingAnalysis>("/api/processing/analysis", json("POST", { processing })),
   processingPreview: async (recordingId: string, processing: Processing) => {

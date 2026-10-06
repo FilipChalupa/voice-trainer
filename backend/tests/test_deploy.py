@@ -85,6 +85,7 @@ def test_settings_are_validated_and_the_setup_names_the_restricted_key(monkeypat
 def test_deploy_sends_the_chosen_variant_under_the_plain_name(monkeypatch, tmp_path):
     monkeypatch.setattr(deploy, "DEPLOY_FILE", tmp_path / "deploy.json")
     monkeypatch.setattr(deploy, "SSH_DIR", tmp_path / "ssh")
+    monkeypatch.setattr(deploy, "LAST_FILE", config.DATA_DIR / "deploy-last.json")
     monkeypatch.setattr(deploy, "public_key", lambda: "ssh-ed25519 AAAA test")
     if config.current_voice() is None:
         client.post("/api/voices", json={"name": "Deploy", "owner": "Test Person", "language": "cs"})
@@ -115,4 +116,7 @@ def test_deploy_sends_the_chosen_variant_under_the_plain_name(monkeypatch, tmp_p
         assert tar.getnames() == ["cs_CZ-w-medium.onnx", "cs_CZ-w-medium.onnx.json"]
         assert tar.extractfile("cs_CZ-w-medium.onnx").read() == b"best"
     assert client.post("/api/deploy/test").json() == {"ok": False, "output": "stored cs_CZ-w-medium.onnx\nrestarted"}
+    # the run remembers it is the one on the server
+    summary = next(j for j in client.get("/api/jobs").json()["items"] if j["job_id"] == job_dir.name)
+    assert summary["deployed"]["host"] == "server.lan" and summary["deployed"]["file"] == "cs_CZ-w-medium.best_mel.onnx" and summary["deployed"]["at"]
     client.delete(f"/api/jobs/{job_dir.name}")

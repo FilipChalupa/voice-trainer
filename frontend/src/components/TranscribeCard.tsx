@@ -4,6 +4,7 @@ import SubtitlesIcon from "@mui/icons-material/Subtitles";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import StopIcon from "@mui/icons-material/Stop";
 import { api, type TranscribeState } from "../api";
+import { notifyDone } from "../lib/notify";
 import { errorText, useI18n, type TKey } from "../i18n";
 
 type Props = { voiceId: string; disabled: boolean; onImported: () => void; onError: (message: string) => void };
@@ -34,7 +35,10 @@ export function TranscribeCard({ voiceId, disabled, onImported, onError }: Props
 
   useEffect(() => {
     if (!state) return;
-    if (wasRunning.current && !RUNNING.has(state.status) && state.status === "done") onImported();
+    if (wasRunning.current && !RUNNING.has(state.status) && state.status === "done") {
+      onImported();
+      notifyDone(t("notify.importDone"));
+    }
     wasRunning.current = RUNNING.has(state.status);
   }, [state, onImported]);
 

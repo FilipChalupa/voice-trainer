@@ -72,7 +72,7 @@ export function ServerDeploy({ job, onError }: { job: Job; onError: (message: st
       {info.configured && (
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
           {job.exports.length > 1 && (
-            <TextField select size="small" label={t("test.variant")} value={chosen.file} onChange={(e) => setFile(e.target.value)} sx={{ minWidth: 200 }}>
+            <TextField select size="small" label={t("test.variant")} value={chosen.file} onChange={(e) => setFile(e.target.value)} helperText={t("test.variantHint")} sx={{ minWidth: 200 }}>
               {job.exports.map((e) => (
                 <MenuItem key={e.file} value={e.file}>
                   {VARIANTS.has(e.variant) ? t(`test.variant.${e.variant}` as TKey) : e.variant}

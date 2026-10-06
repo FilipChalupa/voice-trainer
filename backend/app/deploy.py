@@ -24,6 +24,7 @@ from .runs import find_job_dir, list_exports, read_json
 router = APIRouter(prefix="/api", tags=["deploy"])
 
 DEPLOY_FILE = DATA_DIR / "deploy.json"
+LAST_FILE = DATA_DIR / "deploy-last.json"  # which run is on the server now
 SSH_DIR = DATA_DIR / "ssh"
 RECEIVER_PATH = "/usr/local/bin/voice-trainer-deploy"
 DEFAULTS: dict[str, Any] = {"host": "", "user": "root", "port": 22, "directory": "/opt/piper-data", "restart": "docker restart wyoming-piper"}
@@ -210,6 +211,14 @@ def post_deploy_test() -> dict[str, Any]:
 
 @router.post("/jobs/{job_id}/deploy")
 def post_deploy(job_id: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-    data, files = archive(job_id, str((body or {}).get("file") or "") or None)
-    ok, output = run_ssh(load(), "deploy", data)
-    return {"ok": ok and "restarted" in output, "output": output, "files": files}
+    from .config import now
+
+    settings = load()
+    file = str((body or {}).get("file") or "") or None
+    data, files = archive(job_id, file)
+    ok, output = run_ssh(settings, "deploy", data)
+    ok = ok and "restarted" in output
+    if ok:
+        with _lock:
+            LAST_FILE.write_text(json.dumps({"job_id": job_id, "file": file or files[0], "host": settings["host"], "at": now()}, indent=2))
+    return {"ok": ok, "output": output, "files": files}

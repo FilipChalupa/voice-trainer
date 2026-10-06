@@ -59,6 +59,14 @@ def list_exports(job_dir: Path, job_id: str) -> list[dict[str, Any]]:
     return out
 
 
+def _deployed(job_id: str) -> dict[str, Any] | None:
+    """When this run was last sent to the server (see deploy.py), or None."""
+    from .config import DATA_DIR
+
+    last = read_json(DATA_DIR / "deploy-last.json")
+    return {"at": last.get("at"), "host": last.get("host"), "file": last.get("file")} if last.get("job_id") == job_id else None
+
+
 def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | None:
     job = read_json(job_dir / "job.json")
     if not job:
@@ -85,6 +93,7 @@ def job_summary(job_dir: Path, running_job_id: str | None) -> dict[str, Any] | N
         "from_job": job.get("from_job"),
         "processing": job.get("processing"),
         "intelligibility": (read_json(job_dir / "intelligibility" / "result.json") or {}).get("score"),
+        "deployed": _deployed(job["job_id"]),
         "epoch": result.get("epoch"),
         "validation_last": (result.get("validation") or [None])[-1],
         "exports": exports,

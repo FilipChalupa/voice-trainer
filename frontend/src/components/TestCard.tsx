@@ -120,7 +120,7 @@ export function TestCard({ jobs, voice, baseVoiceName, onVoices, onError, onGo }
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField select size="small" label={t("test.variant")} value={file} onChange={(e) => setFile(e.target.value)} sx={{ minWidth: 220 }}>
+              <TextField select size="small" label={t("test.variant")} value={file} onChange={(e) => setFile(e.target.value)} helperText={t("test.variantHint")} sx={{ minWidth: 220 }}>
                 {job.exports.map((e) => (
                   <MenuItem key={e.file} value={e.file}>
                     {variantLabel(e.variant)}
