@@ -322,7 +322,7 @@ def test_take_can_be_marked_for_recording_again_and_tricky_words_are_flagged():
 def test_prompts_with_numbers_say_how_they_are_read_and_text_is_respelled_for_other_players():
     client.post("/api/prompts/custom", json={"text": "Venku je 23,5 °C a vlhkost 45 %."})
     first = client.get("/api/prompts?count=1").json()["items"][0]
-    assert first["text"] == "Venku je 23,5 °C a vlhkost 45 %." and first["read_as"] == "Venku je 23 celé 5 stupně Celsia a vlhkost 45 procent."
+    assert first["text"] == "Venku je 23,5 °C a vlhkost 45 %." and first["read_as"] == "Venku je dvacet tři celé pět stupně Celsia a vlhkost čtyřicet pět procent."
     client.post(f"/api/prompts/{first['id']}/skip")
     assert client.post("/api/pronounce", json={"text": "E-mail o 2 kg softwaru."}).json() == {"text": "Ímejl o 2 kilogramy softvéru."}
 
@@ -349,3 +349,13 @@ def test_sound_coverage_without_piper_says_so(monkeypatch):
 
     monkeypatch.setattr(coverage, "phonemes", missing)
     assert client.get("/api/dataset/coverage").json() == {"available": False, "items": [], "suggest": [], "low": 20}
+
+
+def test_length_check_counts_the_words_that_are_read_not_the_digits():
+    from app.audio import analyze
+
+    # three seconds of speech for "Budík zvoní v 6:45.": eleven letters as written, thirty as said
+    rec = client.post("/api/recordings", data={"text": "Budík zvoní v 6:45."}, files={"file": ("a.wav", wav_bytes(seconds=2.4), "audio/wav")}).json()
+    assert "text_mismatch" not in rec["quality"]["issues"], rec["quality"]
+    assert "text_mismatch" in analyze(config.current_voice().recordings_dir / f"{rec['id']}.wav", "Budík zvoní v 6:45.")["quality"]["issues"]
+    client.delete(f"/api/recordings/{rec['id']}")

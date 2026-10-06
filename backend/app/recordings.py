@@ -14,7 +14,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from trainer import loanwords
-from trainer.spellout import spell_out
+from trainer.spellout import in_words, spell_out
 
 from . import prompts
 from .audio import analyze, has_speech, normalize_wav, trim_edges
@@ -61,9 +61,10 @@ def _analysis(path: Path, text: str) -> dict:
     return cached
 
 
-def describe(voice: Voice, rid: str, entry: dict[str, Any]) -> dict[str, Any]:
+def describe(voice: Voice, rid: str, entry: dict[str, Any], language: str = "cs") -> dict[str, Any]:
     path = voice.recordings_dir / f"{rid}.wav"
-    info = _analysis(path, entry.get("text", ""))
+    # the length check wants the letters that are actually read: numbers and abbreviations in words
+    info = _analysis(path, in_words(entry.get("text", ""), language))
     return {
         "id": rid,
         "text": entry.get("text", ""),
@@ -123,10 +124,11 @@ def flag_inconsistent(items: list[dict[str, Any]]) -> None:
 
 def list_recordings(voice: Voice) -> list[dict[str, Any]]:
     index = load_index(voice)
+    language = load_settings(voice)["language"]
     items = []
     for rid, entry in index.items():
         if (voice.recordings_dir / f"{rid}.wav").exists():
-            items.append(describe(voice, rid, entry))
+            items.append(describe(voice, rid, entry, language))
     items.sort(key=lambda r: r["created"])
     flag_inconsistent(items)
     suspicious = _flagged_by_model(voice)
@@ -283,7 +285,7 @@ def store_recording(voice: Voice, raw: bytes, text: str, prompt_id: str | None =
             entry["source"] = source
         index[rid] = entry
         save_index(voice, index)
-    return describe(voice, rid, index[rid])
+    return describe(voice, rid, index[rid], load_settings(voice)["language"])
 
 
 @router.post("/recordings")
@@ -349,7 +351,7 @@ async def put_recording(rid: str, body: dict[str, Any]):
             else:
                 index[rid].pop("redo", None)
         save_index(voice, index)
-    return describe(voice, rid, index[rid])
+    return describe(voice, rid, index[rid], load_settings(voice)["language"])
 
 
 @router.delete("/recordings/{rid}")
@@ -399,7 +401,7 @@ def restore_recording(rid: str):
         index = load_index(voice)
         index[rid] = entry
         save_index(voice, index)
-    return describe(voice, rid, entry)
+    return describe(voice, rid, entry, load_settings(voice)["language"])
 
 
 # ----- prompts -------------------------------------------------------------------------

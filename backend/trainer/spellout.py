@@ -181,3 +181,18 @@ def spell_out(text: str, language: str = "cs") -> str:
 
         text = pattern.sub(expand, text)
     return text
+
+
+_DIGITS = re.compile(r"\d+")
+
+
+def in_words(text: str, language: str = "cs") -> str:
+    """`spell_out` plus the remaining numbers in words: what a person is to read ("v šest čtyřicet pět"), and
+    what the length check counts. espeak gets the digits, it reads those right by itself."""
+    language = language.split("-")[0].split("_")[0]
+    text = spell_out(text, language)
+    try:
+        from num2words import num2words
+    except ImportError:  # pragma: no cover
+        return text
+    return _DIGITS.sub(lambda m: num2words(int(m.group(0)), lang=language) if len(m.group(0)) < 10 else m.group(0), text)

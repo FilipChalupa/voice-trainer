@@ -55,3 +55,12 @@ def test_the_syllabic_mark_does_not_split_a_word_in_the_comparison():
 
     assert normalize("Vlk zmrzl, zhltl hrst zrn.") == ["vlk", "zmrzl", "zhltl", "hrst", "zrn"]
     assert similarity("Vlk zvlhl a zmlkl.", "vlk zvlhl a zmlkl") == 1.0
+
+
+def test_numbers_in_words_for_the_reader_and_the_length_check():
+    from trainer.spellout import in_words
+
+    assert in_words("Budík zvoní v 6:45.") == "Budík zvoní v šest čtyřicet pět."
+    assert in_words("Narodil se 3. května 1985.") == "Narodil se třetího května tisíc devětset osmdesát pět."
+    assert in_words("Venku je 23,5 °C a 45 %.") == "Venku je dvacet tři celé pět stupně Celsia a čtyřicet pět procent."
+    assert in_words("It is 25 %.", "en") == "It is twenty-five %."

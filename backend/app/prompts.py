@@ -11,7 +11,7 @@ from typing import Any
 
 import requests
 
-from trainer.spellout import spell_out
+from trainer.spellout import in_words
 
 from .config import LANGUAGES, PROMPTS_DIR, Voice, load_settings, write_settings
 
@@ -335,7 +335,7 @@ def next_prompts(voice: Voice, recorded_ids: set[str], count: int = 5) -> dict[s
     items = []
     for p in remaining[:count]:
         # numbers, units, dates and abbreviations in words: the reader sees what the transcript will hold
-        read_as = spell_out(p["text"], settings["language"])
+        read_as = in_words(p["text"], settings["language"])
         items.append({**p, "read_as": read_as} if read_as != p["text"] else p)
     return {
         "items": items,
