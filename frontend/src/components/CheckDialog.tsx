@@ -105,7 +105,7 @@ export function CheckDialog({ job, onClose, onError }: Props) {
       <DialogActions>
         <Button onClick={onClose}>{t("check.close")}</Button>
         <Button variant="contained" onClick={start} disabled={running || !job?.exports.length}>
-          {result ? t("check.again") : t("check.start")}
+          {running ? t("intel.runningShort") : result ? t("check.again") : t("check.start")}
         </Button>
       </DialogActions>
     </Dialog>

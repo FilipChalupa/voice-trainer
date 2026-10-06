@@ -14,6 +14,8 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
   const [state, setState] = useState<IntelligibilityState | null>(null);
   const running = state?.status === "running";
 
+  // another run: start from nothing (not on every change of `running`, that would wipe the progress just shown)
+  useEffect(() => setState(null), [job?.job_id]);
   useEffect(() => {
     if (!job) return;
     let alive = true;
@@ -22,7 +24,6 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
         .intelligibility(job.job_id)
         .then((s) => alive && setState(s))
         .catch(() => undefined);
-    setState(null);
     poll();
     const timer = setInterval(poll, running ? 1500 : 15000);
     return () => {
@@ -46,6 +47,9 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
 
   const result = state?.result ?? null;
   const pct = state?.progress && state.progress.total > 0 ? (state.progress.current / state.progress.total) * 100 : 0;
+  // the voice reads first, then the base voice (when it has no stored result yet)
+  const half = state?.progress && state.progress.total > 0 ? state.progress.total / 2 : 0;
+  const stage = !state?.progress || state.progress.total === 0 ? "start" : half >= 24 && state.progress.current >= half ? "base" : "voice";
   const imperfect = result?.items.filter((row) => row.similarity < 0.999) ?? [];
 
   return (
@@ -57,9 +61,12 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
             {t("intel.help")}
           </Typography>
           {running && (
-            <Stack spacing={0.5}>
-              <Typography variant="subtitle2">{t("intel.running", { current: state?.progress?.current ?? 0, total: state?.progress?.total ?? 0 })}</Typography>
+            <Stack spacing={0.5} data-testid="intel-progress">
+              <Typography variant="subtitle2">{stage === "start" ? t("intel.starting") : t("intel.running", { current: state?.progress?.current ?? 0, total: state?.progress?.total ?? 0 })}</Typography>
               <LinearProgress variant={pct > 0 ? "determinate" : "indeterminate"} value={pct} />
+              <Typography variant="caption" color="text.secondary">
+                {stage === "base" ? t("intel.stageBase") : t("intel.stageVoice")}
+              </Typography>
             </Stack>
           )}
           {state?.status === "failed" && <Alert severity="error">{state.error}</Alert>}
@@ -115,7 +122,7 @@ export function IntelligibilityDialog({ job, onClose, onChanged, onError }: Prop
       <DialogActions>
         <Button onClick={onClose}>{t("check.close")}</Button>
         <Button variant="contained" onClick={start} disabled={running || !job?.exports.length}>
-          {result ? t("check.again") : t("intel.start")}
+          {running ? t("intel.runningShort") : result ? t("check.again") : t("intel.start")}
         </Button>
       </DialogActions>
     </Dialog>
