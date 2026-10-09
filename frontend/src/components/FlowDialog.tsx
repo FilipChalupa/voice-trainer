@@ -246,6 +246,7 @@ export function FlowDialog({ open, voiceId, recorder, deviceId, agc, maxSeconds,
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+R reloads the page, Ctrl+Space and the like belong to the browser
       if (e.code === "Space") {
         e.preventDefault();
         if (phase === "listening") pause();
@@ -253,7 +254,7 @@ export function FlowDialog({ open, voiceId, recorder, deviceId, agc, maxSeconds,
       } else if (e.key === "Escape") {
         e.preventDefault();
         finish();
-      } else if (e.key.toLowerCase() === "r" && !e.ctrlKey) {
+      } else if (e.key.toLowerCase() === "r") {
         e.preventDefault();
         redoLast();
       } else if (e.key === "ArrowRight") {
