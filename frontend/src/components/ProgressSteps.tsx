@@ -24,7 +24,7 @@ export function ProgressSteps({ voice, report, jobs, state, tab, onGo }: Props) 
       <Stepper nonLinear activeStep={active < 0 ? steps.length : active} alternativeLabel sx={{ "& .MuiStepLabel-label": { mt: 0.5 } }}>
         {steps.map((s) => (
           <Step key={s.id} completed={s.done} active={tab === s.id || (s.id === "record" && tab === "data")}>
-            <StepButton onClick={() => onGo(s.id)} disabled={!voice && s.id !== "voice"} sx={{ py: 0.5 }}>
+            <StepButton onClick={() => onGo(s.id)} disabled={!voice && s.id !== "voice"} sx={{ py: 0.5, my: -0.5 /* MUI gives the button a -24px margin for its 24px padding; a smaller padding needs a matching margin or the circle is pushed out and clipped */ }}>
               <StepLabel>
                 <Typography variant="body2" fontWeight={tab === s.id ? 700 : 500} lineHeight={1.2}>
                   {s.label}
