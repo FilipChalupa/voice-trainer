@@ -17,6 +17,8 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
         },
         shape: { borderRadius: 12 },
         components: {
+          // the scrollbar gutter stays reserved (index.css), so the scroll lock must not pad the body: that shifted the page under every dialog and menu
+          MuiModal: { defaultProps: { disableScrollLock: true } },
           MuiCard: { defaultProps: { elevation: 0 }, styleOverrides: { root: { border: "1px solid", borderColor: prefersDark ? "#1f2a44" : "#e2e8f0" } } },
           MuiButton: {
             defaultProps: { disableElevation: true },

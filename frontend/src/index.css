@@ -1,6 +1,10 @@
 html, body, #root {
   min-height: 100%;
 }
+/* The scrollbar's space is always reserved, so a page that grows past the viewport does not shift the content sideways. */
+html {
+  scrollbar-gutter: stable;
+}
 body {
   margin: 0;
 }
